@@ -38,4 +38,3 @@ firmware/arduino/build/
 # Data — keep tiny corpora in git, ignore large ones
 data/*.txt.gz
 data/raw/
-data/
