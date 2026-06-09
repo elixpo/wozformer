@@ -95,17 +95,17 @@ S_{\text{total}} = \underbrace{w_b \cdot S_{\text{boundary}} + w_l \cdot S_{\tex
 
 Where:
 
-$`
+$$
 S_{\text{boundary}} = \begin{cases} 10 + m & \text{if exact match } m > 0 \\ \cos(\mathbf{e}_{\text{suffix}},\; \mathbf{e}_{\text{prefix}}) & \text{otherwise} \end{cases}
-`$
+$$
 
-$`
+$$
 S_{\text{local}} = \cos\big(\bar{\mathbf{v}}_{t-1},\; \bar{\mathbf{v}}_{\text{cand}}\big) \qquad\qquad S_{\text{global}} = \cos\left(\frac{1}{W}\sum_{i=t-W}^{t-1} \bar{\mathbf{v}}_i,\;\; \bar{\mathbf{v}}_{\text{cand}}\right)
-`$
+$$
 
-$`
+$$
 R_{\text{topic}} = \max\!\Big(0,\;\; \cos\big(\bar{\mathbf{v}}_{\text{cand}},\; \boldsymbol{\mu}_{\text{topic}}\big) - \tau\Big) \qquad \text{where} \quad \boldsymbol{\mu}_{\text{topic}} = \frac{1}{t}\sum_{i=1}^{t} \bar{\mathbf{v}}_i
-`$
+$$
 
 ### Default Weights (Tuned)
 
