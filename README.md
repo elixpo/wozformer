@@ -89,9 +89,9 @@ flowchart TD
 
 ### Composite Score Formula (v5.5.3)
 
-$$
-S_{\text{total}} = \underbrace{w_b \cdot S_{\text{boundary}} + w_l \cdot S_{\text{local}} + w_g \cdot S_{\text{global}} + w_m \cdot S_{\text{makes \_sense}} + w_p \cdot S_{\text{policy}} + w_v \cdot S_{\text{validity}}}_{\text{Positive Signal (Quality)}} \;-\; \underbrace{\Big( w_{sr} \cdot R_{\text{sent}} + w_{se} \cdot R_{\text{sem}} + w_{tr} \cdot R_{\text{topic}} - w_{tp} \cdot P_{\text{progress}} \Big)}_{\text{Repetition Penalty}}
-$$
+$`
+S_{\text{total}} = \underbrace{w_b \cdot S_{\text{boundary}} + w_l \cdot S_{\text{local}} + w_g \cdot S_{\text{global}} + w_m \cdot S_{\text{makes\_sense}} + w_p \cdot S_{\text{policy}} + w_v \cdot S_{\text{validity}}}_{\text{Positive Signal (Quality)}} \;-\; \underbrace{\Big( w_{sr} \cdot R_{\text{sent}} + w_{se} \cdot R_{\text{sem}} + w_{tr} \cdot R_{\text{topic}} - w_{tp} \cdot P_{\text{progress}} \Big)}_{\text{Repetition Penalty}}
+`$
 
 Where:
 
