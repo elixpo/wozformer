@@ -153,6 +153,58 @@ weights stayed near zero (sigmoid gate close to 0.5 produces small `r * v` value
 scale without specific initialization or warmup recipes — the gate collapses
 to indifference.
 
+### F12. HDC-RWKV has a non-monotonic d–quality relationship: bigger d hurts at vocab=256.
+
+**Setup.** vocab=256, NLL-only training (no distillation), L=2, block=64, 15K steps.
+Compared d=256 (nb12c shipping) vs d=384 (today's ablation).
+
+**Observation.** d=256 achieves BPC 2.93; d=384 achieves BPC 3.23. **Increasing the
+hypervector dimension by 50% degraded quality by 0.30 BPC**, despite the larger
+model having strictly more representational capacity in principle. Soft/hard val
+gap is small (<0.05 nats) in both runs — not a binarization artifact.
+
+**Hypothesis.** Two candidate mechanisms (not yet disentangled):
+1. *Optimization*: At larger d, gradient signal-to-noise per dimension drops,
+   making STE-based training less effective. Each dimension's effective gradient
+   magnitude scales as 1/√d.
+2. *Inductive bias loss*: At larger d, random initialization in {-0.5, +0.5}*0.5
+   spreads parameters thinner, making it harder for STE to commit to signs that
+   align with corpus statistics in finite training steps.
+
+**Implication.** Counter-intuitive for the paper: **for binary recurrent LMs, more
+parameters can be actively worse**. The default scaling-law assumption
+("more params → better quality") fails. The d=256 / vocab=256 point is special.
+
+### F11. Cross-architecture distillation can *hurt* HDC-RWKV students at small vocab.
+
+**Setup.** Teacher: dense transformer, vocab=256, d=192, L=4, ~700K params,
+best val 3.02 nats (BPC 2.04). Student: HDC-RWKV, vocab=256, d=384, L=2.
+Distillation: T=4.0, α_nll=0.3, α_distill=0.7. 15,000 steps.
+
+**Observation.** Student best HARD val 5.05 (BPC 3.40) — **0.7 nats WORSE than
+nb12c's no-distillation baseline** (4.35 nats, BPC 2.93) despite using a 50%
+larger hypervector dim (384 vs 256). Soft and hard val track identically
+throughout (no binarization gap), so the regression is genuine, not a
+binarization artifact.
+
+**Implication.** Forcing a binary recurrent student to mimic a dense
+transformer's *distribution shape* (high `α_distill`) actively damages
+training when the student's representational space cannot host that
+distribution. The KL term pushes the student into a region where neither
+NLL nor KL can be minimized — a "stuck in nobody's land" failure mode.
+
+**Open paths to mitigate (not yet tested):**
+1. Lower `α_distill` (try 0.2 with 0.8 NLL) — distillation as auxiliary, not primary
+2. Match student to teacher architecture (binary transformer student)
+3. Replace KL with a top-k-restricted KL — only ask the student to mimic the
+   top tokens, ignoring the tail the student can't represent
+4. Use a smaller / matched-architecture teacher (e.g. RWKV teacher → HDC-RWKV student)
+
+**Implication for paper.** This is a genuine novel negative result.
+Distillation literature universally assumes a "smarter" teacher pulls the
+student up. We show empirically that **architecture mismatch breaks this
+assumption** at the binary recurrent scale.
+
 ### F10. Recurrent state binarization (vs continuous tanh) destroys training signal.
 
 **Setup.** nb12 initial implementation: `state_t = ste_sign(decay * state + input)`
