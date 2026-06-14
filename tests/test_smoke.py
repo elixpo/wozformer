@@ -106,6 +106,32 @@ def test_hdc_rwkv_hybrid_forward_and_quantization() -> None:
     assert db == expected, f'got {db}, expected {expected}'
 
 
+def test_hdc_rwkv_cont_decay_forward_and_init() -> None:
+    """Continuous-decay variant: decay is sigmoid-bounded, prototype int8."""
+    cfg = config.HDCRWKVContinuousDecayConfig(vocab_size=32, d=64, n_layers=1, block_size=8)
+    m = models.HDCRWKVContinuousDecay(cfg)
+    x = torch.randint(0, 32, (4, 8))
+    y = torch.randint(0, 32, (4, 8))
+
+    # Decay should sigmoid to (0, 1), default init around sigmoid(2) ≈ 0.88
+    decay0 = torch.sigmoid(m.decay_logits[0]).detach()
+    assert (decay0 > 0).all() and (decay0 < 1).all()
+    assert 0.80 < decay0.mean().item() < 0.92, f'unexpected init decay mean: {decay0.mean().item()}'
+
+    # Train forward + hard forward both work
+    logits, loss = m(x, y)
+    assert logits.shape == (4, 8, 32)
+    assert torch.isfinite(loss)
+
+    logits_h, loss_h = m.forward_hard(x, y, quantize_prototype=True)
+    assert torch.isfinite(loss_h)
+
+    # Deployment bytes account for bipolar vocab + fp16 decay + int8 prototype
+    db = m.deployment_bytes()
+    expected = (32 * 64) // 8 + 1 * 64 * 2 + 32 * 64
+    assert db == expected, f'got {db}, expected {expected}'
+
+
 def test_generate_runs() -> None:
     text = "hello world this is a small test of the tokenizer and model " * 50
     tok = tokenizer.BPETokenizer.train(text, vocab_size=32)
@@ -126,6 +152,7 @@ if __name__ == "__main__":
         test_hdc_rwkv_soft_and_hard_match_on_init,
         test_distillation_step_runs,
         test_hdc_rwkv_hybrid_forward_and_quantization,
+        test_hdc_rwkv_cont_decay_forward_and_init,
         test_generate_runs,
     ]
     for t in tests:

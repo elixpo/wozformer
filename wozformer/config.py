@@ -107,6 +107,20 @@ class HDCRWKVHybridConfig:
 
 
 @dataclass
+class HDCRWKVContinuousDecayConfig:
+    """HDC-RWKV with continuous decay + int8 prototype (F15 test).
+
+    Tests whether the bipolar decay_mask is the actual bottleneck of binary
+    HDC-RWKV. Vocab stays bipolar, decay becomes sigmoid-bounded continuous,
+    prototype stays int8 (matching Tier 2.5).
+    """
+    vocab_size: int = 256
+    d: int = 512
+    n_layers: int = 1
+    block_size: int = 64
+
+
+@dataclass
 class DistillationConfig:
     """Teacher → student knowledge distillation."""
     temperature: float = 4.0

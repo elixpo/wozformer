@@ -250,6 +250,31 @@ to coherent text at any size. This is a documented ceiling. To break it, the
 output mechanism must be relaxed (see proposed Tier 2.5 below). The pure-binary
 variant remains the unique 6502 demo target.
 
+### F14. The output projection is NOT the bottleneck of bipolar HDC-RWKV.
+
+**Setup.** Same architecture as nb12c (HDCRWKVHybrid, V=256, d=512, L=1, block=64,
+20K steps NLL training). Only change: prototype matrix relaxed from bipolar
+{-1, +1}^d to int8 (continuous training, 8-bit deployment with per-tensor scale).
+Storage rose 9× (16 KB → 148 KB).
+
+**Observation.** Best HARD val 4.3142 nats/token, BPC **2.94** — within noise of
+pure-binary nb12c (BPC 2.93). 256× more expressive output projection moved BPC
+by 0.01.
+
+**Implication.** The bipolar prototype-similarity output was *not* the dominant
+limitation. The dynamic-range argument (logits ~O(√d) when prototype is bipolar)
+turns out not to bind in practice — the model finds enough signal even within
+that range. The bottleneck must lie elsewhere: most likely the bipolar
+**decay_mask** in the recurrence, which forces each channel into binary memory
+behaviour (keep vs flip every step), preventing the continuous-decay patterns
+that real RWKV uses for multi-horizon temporal memory.
+
+**Implication for paper.** Contrary to a natural intuition, output relaxation
+alone cannot break the binary HDC-RWKV ceiling. This is a clean negative result
+about *where the binary constraint actually limits expressiveness*. The
+architecture's recurrent dynamics (specifically the binary decay) appear to be
+the dominant restriction.
+
 ### Retracted F12 — d=384 vs d=256 NOT a controlled experiment.
 
 (*Originally claimed: "bigger d hurts quality" based on nb12c (d=256, BPC 2.93)
