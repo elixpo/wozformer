@@ -33,13 +33,18 @@ class TrainConfig:
 # ---- Per-architecture configs -------------------------------------------------
 @dataclass
 class TransformerConfig:
-    """nb05/nb07b dense transformer (the baseline teacher candidate)."""
+    """nb05/nb07b dense transformer (the baseline teacher candidate).
+
+    Note: dropout default is 0.2, NOT 0.0. Tiny Shakespeare (~1MB) is small
+    enough that any teacher with d_model > 128 will overfit catastrophically
+    without dropout. If you set dropout=0.0, expect train→memorize, val→explode.
+    """
     vocab_size: int = 128
     d_model: int = 32
     num_heads: int = 1
     n_layers: int = 2
     mlp_mult: int = 2
-    dropout: float = 0.0
+    dropout: float = 0.2
 
 
 @dataclass
