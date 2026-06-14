@@ -11,3 +11,4 @@ from .moe import TinyMoETransformer       # noqa: F401
 from .rwkv import RWKVModel               # noqa: F401
 from .hdc import HDCModel                 # noqa: F401
 from .hdc_rwkv import HDCRWKV             # noqa: F401
+from .hdc_rwkv_hybrid import HDCRWKVHybrid  # noqa: F401

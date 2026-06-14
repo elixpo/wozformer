@@ -91,6 +91,22 @@ class HDCRWKVConfig:
 
 
 @dataclass
+class HDCRWKVHybridConfig:
+    """Hybrid HDC-RWKV: binary recurrence + int8 prototype output.
+
+    Breaks the BPC ~2.93 ceiling of pure-binary HDC-RWKV (F13 in findings.md)
+    by relaxing the output projection to continuous (int8-deployable) values
+    while keeping vocab + decay bipolar for cheap recurrence.
+
+    Default deployment target: ESP32 flash (~150 KB at V=256, d=512).
+    """
+    vocab_size: int = 256
+    d: int = 512
+    n_layers: int = 1
+    block_size: int = 64
+
+
+@dataclass
 class DistillationConfig:
     """Teacher → student knowledge distillation."""
     temperature: float = 4.0

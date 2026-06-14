@@ -73,6 +73,39 @@ def test_distillation_step_runs() -> None:
     assert "nll" in info and "kl" in info
 
 
+def test_hdc_rwkv_hybrid_forward_and_quantization() -> None:
+    """Hybrid HDC-RWKV: train forward + hard forward + int8 prototype quantization."""
+    cfg = config.HDCRWKVHybridConfig(vocab_size=32, d=64, n_layers=1, block_size=8)
+    m = models.HDCRWKVHybrid(cfg)
+    x = torch.randint(0, 32, (4, 8))
+    y = torch.randint(0, 32, (4, 8))
+
+    # Train forward (STE on binary params, fp32 on prototype)
+    logits, loss = m(x, y)
+    assert logits.shape == (4, 8, 32)
+    assert torch.isfinite(loss)
+
+    # Hard forward with prototype quantized to int8
+    logits_h, loss_h = m.forward_hard(x, y, quantize_prototype=True)
+    assert logits_h.shape == (4, 8, 32)
+    assert torch.isfinite(loss_h)
+
+    # Hard forward without quantization (sanity check it still works)
+    logits_h2, loss_h2 = m.forward_hard(x, y, quantize_prototype=False)
+    assert torch.isfinite(loss_h2)
+
+    # Int8 prototype quantization helper
+    q, scale = m.quantize_prototype_int8()
+    assert q.dtype == torch.int8
+    assert q.shape == (32, 64)
+    assert 0 < scale < 1.0
+
+    # Deployment bytes: bipolar (vocab+decay) + int8 (prototype)
+    db = m.deployment_bytes()
+    expected = (32*64 + 1*64) // 8 + 32*64
+    assert db == expected, f'got {db}, expected {expected}'
+
+
 def test_generate_runs() -> None:
     text = "hello world this is a small test of the tokenizer and model " * 50
     tok = tokenizer.BPETokenizer.train(text, vocab_size=32)
@@ -92,6 +125,7 @@ if __name__ == "__main__":
         test_transformer_forward_shape,
         test_hdc_rwkv_soft_and_hard_match_on_init,
         test_distillation_step_runs,
+        test_hdc_rwkv_hybrid_forward_and_quantization,
         test_generate_runs,
     ]
     for t in tests:

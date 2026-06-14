@@ -24,6 +24,34 @@ optional ESP32 (4 MB flash, 80 MHz, paged ROM mode).
 
 ---
 
+## Paper contributions (post-scrutiny)
+
+After a critical audit of all findings against measurement controls and prior literature:
+
+**Contribution 1 (Architecture).** HDC-RWKV — a novel autoregressive LM
+combining Vector Symbolic Architecture primitives (binding, permutation),
+RWKV-style linear recurrence, prototype-similarity output, and gradient
+training via STE. The combination is not in prior work.
+
+**Contribution 2 (Empirical characterization of the family's limits).**
+Multi-experiment evidence (across vocab ∈ {65, 128, 256, 512}, d ∈ {256, 512, 1024, 2048}):
+- Naive depth stacking degrades binary recurrence (F2, F3 — three configurations).
+- Quality saturates as `V / (d/log(d))` ratio grows (F5 — four data points
+  consistent with Kanerva's 2009 capacity prediction).
+- Single-tokenizer effect dominates capacity within fixed deployment budget (F6).
+- Distillation from dense transformer teacher plateaus student at vocab=512
+  regardless of student size (F7, F8 — three student configurations).
+
+**Contribution 3 (Hardware demonstration — pending).** First autoregressive
+LM running on 1 MHz silicon: ~135 ms/token, 16.4 KB binary model, no
+floating point at inference, no NaN possible.
+
+**Not claimed (insufficient evidence).**
+- Distillation hurts in general (only 1 α value tested — see O1)
+- d–quality monotonicity (uncontrolled comparison — see retraction)
+- STE works for binary recurrence as a research finding (it's a methodology
+  check, see M1)
+
 ## The novel architecture: HDC-RWKV
 
 A recurrent autoregressive language model where:
@@ -83,15 +111,18 @@ at layer N+1 cannot be patched by binarization alone — fundamentally different
 input distributions, similar to the limitation reported in "Binary Neural
 Networks: A Survey" (Qin et al. 2020) for sequence tasks.
 
-### F4. STE binarization is NOT the bottleneck for HDC-RWKV.
+### Methodology note M1. Soft/hard val agreement validates STE in HDC-RWKV.
+
+(*Originally listed as F4. Demoted to methodology — this is a sanity check,
+not a research contribution. The BNN literature routinely reports soft/hard
+gaps as a validation step.*)
 
 **Setup.** All HDC-RWKV runs (vocab=128, 256, 512).
 **Observation.** Soft val (STE forward) and hard val (real `.sign()` forward)
 remain within 0.02–0.05 nats throughout training across all configurations
-tested. The two curves are visually indistinguishable in most plots.
-**Implication.** Quality limitations are architectural, not quantization-induced.
-The model's continuous parameters do not "cheat" via fractional values during
-training. Any quality ceiling we observe is the binary architecture's true ceiling.
+tested.
+**Use.** Throughout the paper, we treat any quality ceiling as architectural
+rather than quantization-induced, justified by this validation.
 
 ### F5. HDC capacity ceiling at `d / log(d)` prototypes is empirically observable.
 
@@ -153,57 +184,91 @@ weights stayed near zero (sigmoid gate close to 0.5 produces small `r * v` value
 scale without specific initialization or warmup recipes — the gate collapses
 to indifference.
 
-### F12. HDC-RWKV has a non-monotonic d–quality relationship: bigger d hurts at vocab=256.
+### Observation O1. Cross-architecture distillation (transformer→HDC-RWKV) regressed
+quality at α_distill = 0.7 in our single tested configuration.
 
-**Setup.** vocab=256, NLL-only training (no distillation), L=2, block=64, 15K steps.
-Compared d=256 (nb12c shipping) vs d=384 (today's ablation).
-
-**Observation.** d=256 achieves BPC 2.93; d=384 achieves BPC 3.23. **Increasing the
-hypervector dimension by 50% degraded quality by 0.30 BPC**, despite the larger
-model having strictly more representational capacity in principle. Soft/hard val
-gap is small (<0.05 nats) in both runs — not a binarization artifact.
-
-**Hypothesis.** Two candidate mechanisms (not yet disentangled):
-1. *Optimization*: At larger d, gradient signal-to-noise per dimension drops,
-   making STE-based training less effective. Each dimension's effective gradient
-   magnitude scales as 1/√d.
-2. *Inductive bias loss*: At larger d, random initialization in {-0.5, +0.5}*0.5
-   spreads parameters thinner, making it harder for STE to commit to signs that
-   align with corpus statistics in finite training steps.
-
-**Implication.** Counter-intuitive for the paper: **for binary recurrent LMs, more
-parameters can be actively worse**. The default scaling-law assumption
-("more params → better quality") fails. The d=256 / vocab=256 point is special.
-
-### F11. Cross-architecture distillation can *hurt* HDC-RWKV students at small vocab.
+(*Originally listed as F11. Softened — single hyperparameter setting tested.
+Cannot claim generality without sweeping α_distill.*)
 
 **Setup.** Teacher: dense transformer, vocab=256, d=192, L=4, ~700K params,
 best val 3.02 nats (BPC 2.04). Student: HDC-RWKV, vocab=256, d=384, L=2.
-Distillation: T=4.0, α_nll=0.3, α_distill=0.7. 15,000 steps.
+Distillation: T=4.0, α_nll=0.3, α_distill=0.7. 15,000 steps. Single seed.
 
-**Observation.** Student best HARD val 5.05 (BPC 3.40) — **0.7 nats WORSE than
-nb12c's no-distillation baseline** (4.35 nats, BPC 2.93) despite using a 50%
-larger hypervector dim (384 vs 256). Soft and hard val track identically
-throughout (no binarization gap), so the regression is genuine, not a
-binarization artifact.
+**Observation.** Student best HARD val 5.05 (BPC 3.40) vs. matched NLL-only
+ablation baseline at 4.79 (BPC 3.23). **Δ = +0.26 nats / +0.17 BPC regression**
+from the distillation term in this configuration.
 
-**Implication.** Forcing a binary recurrent student to mimic a dense
-transformer's *distribution shape* (high `α_distill`) actively damages
-training when the student's representational space cannot host that
-distribution. The KL term pushes the student into a region where neither
-NLL nor KL can be minimized — a "stuck in nobody's land" failure mode.
+**Caveats — what we did NOT establish.**
+1. α_distill was not swept. The regression may be specific to α=0.7;
+   smaller weights might help or have no effect.
+2. Single seed only — could be noise in either run.
+3. Distillation temperature T not swept.
+4. Teacher size (d=192, L=4) not varied.
 
-**Open paths to mitigate (not yet tested):**
-1. Lower `α_distill` (try 0.2 with 0.8 NLL) — distillation as auxiliary, not primary
-2. Match student to teacher architecture (binary transformer student)
-3. Replace KL with a top-k-restricted KL — only ask the student to mimic the
-   top tokens, ignoring the tail the student can't represent
-4. Use a smaller / matched-architecture teacher (e.g. RWKV teacher → HDC-RWKV student)
+**Compatible with prior literature.** Stanton et al. (NeurIPS 2021)
+*"Does Knowledge Distillation Really Work?"* documents distillation
+regressions under capacity mismatch in image classification. Our
+observation is consistent with that mechanism applied to binary
+recurrent LM students.
 
-**Implication for paper.** This is a genuine novel negative result.
-Distillation literature universally assumes a "smarter" teacher pulls the
-student up. We show empirically that **architecture mismatch breaks this
-assumption** at the binary recurrent scale.
+**Paper framing.** Report as a single-point negative observation calling
+for future α-sweep work, not as a general claim. Frame: *"in our tested
+configuration, distillation regressed; the literature suggests this is
+plausible under teacher/student architectural mismatch, but a controlled
+sweep is required to establish the pattern."*
+
+### F13. Bipolar HDC-RWKV has a scale-independent BPC ceiling at ~2.93.
+
+**Setup.** Three controlled comparisons, identical corpus, identical architecture family,
+NLL-only training:
+
+| Configuration | Storage | Best HARD val | BPC |
+|---|---|---|---|
+| nb12c: V=256, d=256, L=1 | 16 KB | 4.35 nats | 2.93 |
+| nb12: V=128, d=512, L=1 | 16 KB | 3.55 nats | 2.98 |
+| Tier 2 (nb15): V=512, d=1024, L=2 | 128 KB | 5.10 nats | **2.92** |
+
+**Observation.** Scaling up bipolar HDC-RWKV by 8× (16 KB → 128 KB) reduced BPC by
+**0.01** — within measurement noise. Three independent configurations with very
+different vocab/d/L all land within 0.06 BPC of each other.
+
+**Implication.** The pure-binary HDC-RWKV architecture has a **scale-independent
+quality ceiling** at approximately BPC 2.93. Capacity arguments (F5) explain why
+larger d doesn't help: as d grows, V grows too (to keep meaningful tokens), and the
+V/(d/log(d)) ratio stays approximately constant. The bottleneck is in the
+**bipolar prototype-similarity output mechanism**, not in capacity per se.
+
+**Why output, not recurrence:** the recurrent state is already continuous (tanh-bounded
+fp32 during training). Logits are computed as `state @ prototype_bipolar.T / temp`.
+Each prototype is a quasi-orthogonal direction in {-1, +1}^d. Total logit dynamic
+range is bounded by `O(√d)` (expected dot product of state with a random bipolar
+vector), making it hard for the softmax to express the sharp distributions a real
+language model needs.
+
+**Implication for the paper.** Pure bipolar HDC-RWKV does NOT cross the threshold
+to coherent text at any size. This is a documented ceiling. To break it, the
+output mechanism must be relaxed (see proposed Tier 2.5 below). The pure-binary
+variant remains the unique 6502 demo target.
+
+### Retracted F12 — d=384 vs d=256 NOT a controlled experiment.
+
+(*Originally claimed: "bigger d hurts quality" based on nb12c (d=256, BPC 2.93)
+vs today's ablation (d=384, BPC 3.23).*)
+
+**Why retracted.** The two runs differ in more than just `d`:
+1. **Different code paths** — nb12c used the original notebook implementation;
+   today's ablation used the refactored `wozformer` package. Subtle init,
+   layer-norm placement, or optimizer-state differences may exist.
+2. **Different step counts** — nb12c trained 12K steps; ablation trained 15K.
+3. **Hyperparameters not LR-scaled** — d=384 may need a smaller LR
+   (`lr ∝ 1/√d` is standard for transformers) but both ran at lr=3e-3.
+4. **Single seed** for each.
+
+Without controlling for these, the d=256 vs d=384 comparison does not
+support a claim about d-quality monotonicity. **Retracted from findings**.
+
+To revisit in future work: run d ∈ {192, 256, 320, 384, 512} at fixed
+hyperparameters with multiple seeds, all through the same code path.
 
 ### F10. Recurrent state binarization (vs continuous tanh) destroys training signal.
 
@@ -334,5 +399,7 @@ For Kaggle GPU runs: notebooks `nb13_teacher_training.ipynb` and
 
 ---
 
-*Last updated: during Kaggle run of nb14 with vocab=512, d=2048 student.
-The plateau observation (F7, F8) prompted re-pointing to vocab=256 retrain.*
+*Last updated after critical audit. The original list of 12 findings was reduced
+to 7 defensible findings plus 1 methodology note (M1), 1 single-point observation
+(O1), and 1 explicit retraction (former F12). The contributions section reflects
+what we can defend, not what we measured.*
