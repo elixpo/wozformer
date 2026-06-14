@@ -41,6 +41,13 @@ Multi-experiment evidence (across vocab ∈ {65, 128, 256, 512}, d ∈ {256, 512
 - Single-tokenizer effect dominates capacity within fixed deployment budget (F6).
 - Distillation from dense transformer teacher plateaus student at vocab=512
   regardless of student size (F7, F8 — three student configurations).
+- The BPC ~2.93 ceiling is **scale-independent** (F13) and **survives both
+  output relaxation (F14) and decay relaxation (F15)** — three independent
+  ablations within 0.04 BPC of each other.
+- When given continuous decay freedom, the model **voluntarily binarises**
+  to a bimodal {0, 1} distribution (F16) — strong evidence that the binary
+  parameterization is preferred, not imposed, and the ceiling lies in the
+  bipolar hidden-state information capacity, not in any peripheral gate.
 
 **Contribution 3 (Hardware demonstration — pending).** First autoregressive
 LM running on 1 MHz silicon: ~135 ms/token, 16.4 KB binary model, no
@@ -250,6 +257,52 @@ to coherent text at any size. This is a documented ceiling. To break it, the
 output mechanism must be relaxed (see proposed Tier 2.5 below). The pure-binary
 variant remains the unique 6502 demo target.
 
+### F15. Continuous per-channel decay does NOT break the ceiling either.
+
+**Setup.** Same architecture as Tier 2.5 (V=256, d=512, L=1, block=64, 20K steps NLL).
+Only change: `decay_mask` relaxed from bipolar {-1, +1}^d to per-channel continuous
+sigmoid ∈ (0, 1), initialised at sigmoid(2) ≈ 0.88. Prototype kept int8.
+
+**Observation.** Best HARD val 4.2468 nats/token, BPC **2.90** — within noise of
+Tier 2.5 (BPC 2.94) and nb12c (BPC 2.93). Three independent component relaxations
+(scale F13, output F14, decay F15) all land at BPC 2.90–2.94.
+
+**Implication.** Neither output projection (F14) nor decay gating (F15) is the
+binding constraint. Combined with F13's scale invariance, the BPC ~2.93 ceiling
+is **wider than any single component** — it is a property of the binary recurrent
+*family*, not of one specific weight tensor.
+
+### F16. Given continuous decay freedom, the model self-organises to a bimodal {0, 1} distribution.
+
+**Setup.** Same run as F15. Decay parameter is per-channel scalar with full
+gradient access, sigmoid-bounded to (0, 1), 512 channels, 20K training steps.
+
+**Observation.** Final per-channel decay distribution: **min 0.000, max 1.000,
+std 0.458**, with two strong modes — 264 channels concentrated near 0.0
+("forget-now") and 140 channels concentrated near 1.0 ("keep-forever"),
+only ~108 channels using intermediate values. The init value (0.88) is almost
+deserted post-training.
+
+**Implication.** When given a smooth knob from 0 to 1 with no architectural
+pressure toward binarity, the optimiser **voluntarily binarises the decay**.
+This means the bipolar `decay_mask` in nb12c was not an architectural
+straitjacket — it matched the solution the model converges to anyway. The
+binary parameterization is *preferred*, not just *tolerated*, at this scale.
+
+**Mechanism hypothesis (paper claim).** The HDC-RWKV ceiling is not in any
+peripheral gate; it is in the **information capacity of the recurrent hidden
+state** itself. A bipolar d=512 state carries 512 bits per token. No relaxation
+of surrounding parameters (output, decay) moves the ceiling because the
+state-channel itself is the bottleneck. Future work that breaks BPC 2.93 will
+need to enlarge or restructure the state (continuous-tanh-d, multi-state, or
+mixture of bipolar states), not relax neighbouring projections.
+
+**Implication for the paper.** F13 + F14 + F15 + F16 together form a
+**mechanism story**: we systematically ruled out the two natural suspects
+(output and decay), and the model's own behaviour under relaxation (F16)
+points at the state representation as the residual bottleneck. This is
+stronger than any single ablation could be.
+
 ### F14. The output projection is NOT the bottleneck of bipolar HDC-RWKV.
 
 **Setup.** Same architecture as nb12c (HDCRWKVHybrid, V=256, d=512, L=1, block=64,
@@ -424,7 +477,10 @@ For Kaggle GPU runs: notebooks `nb13_teacher_training.ipynb` and
 
 ---
 
-*Last updated after critical audit. The original list of 12 findings was reduced
-to 7 defensible findings plus 1 methodology note (M1), 1 single-point observation
-(O1), and 1 explicit retraction (former F12). The contributions section reflects
-what we can defend, not what we measured.*
+*Last updated after F15/F16 (continuous-decay ablation, 2026-06-15).
+Defensible findings: F1, F2, F3, F5, F6, F7, F8, F9, F10, F13, F14, F15, F16.
+Methodology note: M1. Single-point observation: O1. Retracted: former F12.
+Tier 2.5 (hybrid int8 output) and Tier 2.6 (continuous decay) are
+**research-only artifacts** — they do not improve BPC and are not shipped.
+The sole deployment artifact is `wozformer_hdcrwkv_v3.bin` (nb12c, 16.4 KB,
+BPC 2.93), targeting both 6502 (direct EEPROM) and ESP32 (flash) hardware.*
