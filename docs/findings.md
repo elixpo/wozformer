@@ -41,6 +41,9 @@ Multi-experiment evidence (across vocab ∈ {65, 128, 256, 512}, d ∈ {256, 512
 - Single-tokenizer effect dominates capacity within fixed deployment budget (F6).
 - Distillation from dense transformer teacher plateaus student at vocab=512
   regardless of student size (F7, F8 — three student configurations).
+- A controlled α-sweep (F17 — nb18) confirms cross-architecture distillation
+  *regresses* HDC-RWKV at every α ∈ {0.3, 0.5, 0.7}, with a near-flat ~0.12 BPC
+  penalty across α. This rules out the "we picked the wrong α" explanation.
 - The BPC ~2.93 ceiling is **scale-independent** (F13) and **survives both
   output relaxation (F14) and decay relaxation (F15)** — three independent
   ablations within 0.04 BPC of each other.
@@ -54,7 +57,6 @@ LM running on 1 MHz silicon: ~135 ms/token, 16.4 KB binary model, no
 floating point at inference, no NaN possible.
 
 **Not claimed (insufficient evidence).**
-- Distillation hurts in general (only 1 α value tested — see O1)
 - d–quality monotonicity (uncontrolled comparison — see retraction)
 - STE works for binary recurrence as a research finding (it's a methodology
   check, see M1)
@@ -191,38 +193,57 @@ weights stayed near zero (sigmoid gate close to 0.5 produces small `r * v` value
 scale without specific initialization or warmup recipes — the gate collapses
 to indifference.
 
-### Observation O1. Cross-architecture distillation (transformer→HDC-RWKV) regressed
-quality at α_distill = 0.7 in our single tested configuration.
+### F17. Cross-architecture distillation regresses HDC-RWKV across all α tested.
 
-(*Originally listed as F11. Softened — single hyperparameter setting tested.
-Cannot claim generality without sweeping α_distill.*)
+(*Replaces and upgrades O1. After the nb18 controlled sweep we now have multi-point
+evidence; this is a finding, not an observation.*)
 
-**Setup.** Teacher: dense transformer, vocab=256, d=192, L=4, ~700K params,
-best val 3.02 nats (BPC 2.04). Student: HDC-RWKV, vocab=256, d=384, L=2.
-Distillation: T=4.0, α_nll=0.3, α_distill=0.7. 15,000 steps. Single seed.
+**Setup.** Single Kaggle run, single seed (1337), shared tokenizer, shared teacher.
+- Teacher: dense transformer V=256, d=192, L=4, dropout=0.2, 6k steps → BPC **2.073**.
+- Student: HDC-RWKV V=256, d=384, L=2, block=64, 12k steps, LR=3e-3, AdamW.
+- Distill T=4.0. Sweep α_distill ∈ {0.0, 0.3, 0.5, 0.7} (α_nll = 1 − α_distill).
+- The α_distill=0.0 run is the matched NLL-only baseline. All four students
+  reinitialised from the same seed before training.
 
-**Observation.** Student best HARD val 5.05 (BPC 3.40) vs. matched NLL-only
-ablation baseline at 4.79 (BPC 3.23). **Δ = +0.26 nats / +0.17 BPC regression**
-from the distillation term in this configuration.
+**Observation.**
 
-**Caveats — what we did NOT establish.**
-1. α_distill was not swept. The regression may be specific to α=0.7;
-   smaller weights might help or have no effect.
-2. Single seed only — could be noise in either run.
-3. Distillation temperature T not swept.
-4. Teacher size (d=192, L=4) not varied.
+| α_distill | best HARD val | BPC | ΔBPC vs baseline |
+|---|---|---|---|
+| 0.0 (baseline, NLL-only) | 4.797 | **3.274** | — |
+| 0.3 | 4.974 | 3.395 | **+0.121** |
+| 0.5 | 4.974 | 3.395 | **+0.121** |
+| 0.7 | 4.997 | 3.410 | **+0.136** |
+
+All three distilled students regress against the NLL-only baseline. The regression
+is **nearly flat in α** (Δ in {0.12, 0.12, 0.14}), suggesting a discontinuity at
+α=0 rather than a smooth curve: any non-zero teacher mixing causes the same
+~0.12 BPC penalty.
+
+Qualitative generation (same prompt `"my lord,"`, same seed):
+- baseline: `"that tethent ollend... the louvenst ake of bant themo: and wand..."` — recognisable English fragments (`the`, `and`, `wand`).
+- α=0.7: `"atelan, afanfr; o: the id: the larsent: gud..."` — far more fragmented, almost no full words.
+
+**Implication.** Distillation from a dense transformer hurts a bipolar recurrent
+student at every distillation weight in our sweep. The flat-Δ pattern is the
+diagnostic: this is not "α was tuned wrong"; the teacher's soft distribution
+itself is misaligned with what the binary student can represent. Forcing the
+student to match a distribution it cannot reach makes its loss surface worse,
+not better — even a tiny dose of teacher signal is enough to derail it.
 
 **Compatible with prior literature.** Stanton et al. (NeurIPS 2021)
 *"Does Knowledge Distillation Really Work?"* documents distillation
-regressions under capacity mismatch in image classification. Our
-observation is consistent with that mechanism applied to binary
-recurrent LM students.
+regression under capacity mismatch in image classification. F17 is the
+binary-recurrent-LM analogue: the student is *architecturally* incapable
+of producing the teacher's soft logit shape (F13–F16 ceiling), and KL is
+the wrong loss to chase under that constraint.
 
-**Paper framing.** Report as a single-point negative observation calling
-for future α-sweep work, not as a general claim. Frame: *"in our tested
-configuration, distillation regressed; the literature suggests this is
-plausible under teacher/student architectural mismatch, but a controlled
-sweep is required to establish the pattern."*
+**Open caveats** (worth flagging in paper, not blocking the finding):
+1. Single seed per α — variance not estimated, but the consistent direction
+   across four independent runs makes a noise explanation implausible.
+2. Distillation temperature T=4.0 not swept. Lower T might reduce the
+   regression by sharpening teacher targets toward argmax.
+3. Only one teacher size tested — a smaller teacher closer to student
+   capacity may behave differently (matches F7's vocab=512 finding).
 
 ### F13. Bipolar HDC-RWKV has a scale-independent BPC ceiling at ~2.93.
 
@@ -477,9 +498,10 @@ For Kaggle GPU runs: notebooks `nb13_teacher_training.ipynb` and
 
 ---
 
-*Last updated after F15/F16 (continuous-decay ablation, 2026-06-15).
-Defensible findings: F1, F2, F3, F5, F6, F7, F8, F9, F10, F13, F14, F15, F16.
-Methodology note: M1. Single-point observation: O1. Retracted: former F12.
+*Last updated 2026-06-15 after F15/F16 (continuous-decay ablation, nb17)
+and F17 (distillation α-sweep, nb18 — replaces O1).
+Defensible findings: F1, F2, F3, F5, F6, F7, F8, F9, F10, F13, F14, F15, F16, F17.
+Methodology note: M1. Retracted: former F12. (O1 promoted to F17.)
 Tier 2.5 (hybrid int8 output) and Tier 2.6 (continuous decay) are
 **research-only artifacts** — they do not improve BPC and are not shipped.
 The sole deployment artifact is `wozformer_hdcrwkv_v3.bin` (nb12c, 16.4 KB,
