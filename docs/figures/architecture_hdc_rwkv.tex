@@ -1,0 +1,158 @@
+% HDC-RWKV (nb12c) — shipping architecture diagram for the Wozformer paper.
+%
+% Compile standalone:
+%   pdflatex architecture_hdc_rwkv.tex
+%
+% Or \input{architecture_hdc_rwkv.tex} inside a main paper. The figure is
+% a self-contained tikzpicture wrapped in a `figure` env when standalone.
+%
+% Faithful to wozformer/models/hdc_rwkv.py at commit time of writing.
+% V=256, d=256, L=1, block=16. All learnable params bipolar at inference.
+
+\documentclass[tikz,border=8pt]{standalone}
+\usepackage{tikz}
+\usepackage{amsmath,amssymb}
+\usetikzlibrary{positioning,arrows.meta,calc,fit,backgrounds,shapes.geometric,decorations.pathreplacing}
+
+\definecolor{cBipolar}{HTML}{2C5282}   % bipolar tensor: deep blue
+\definecolor{cCont}{HTML}{B7791F}      % continuous (state): amber
+\definecolor{cOp}{HTML}{2D3748}        % op nodes: charcoal
+\definecolor{cSampler}{HTML}{6B46C1}   % output sampler: violet
+\definecolor{cArrow}{HTML}{1A202C}
+
+\tikzset{
+  bipolar/.style = {draw=cBipolar, fill=cBipolar!8, thick, rounded corners=2pt,
+                    minimum height=8mm, minimum width=22mm, align=center,
+                    font=\small},
+  cont/.style    = {draw=cCont,    fill=cCont!10,    thick, rounded corners=2pt,
+                    minimum height=8mm, minimum width=22mm, align=center,
+                    font=\small},
+  op/.style      = {draw=cOp,      fill=white,       thick, circle,
+                    inner sep=1.4pt, font=\small},
+  sampler/.style = {draw=cSampler, fill=cSampler!10, thick, rounded corners=2pt,
+                    minimum height=8mm, minimum width=22mm, align=center,
+                    font=\small},
+  io/.style      = {draw=black!70, thick, rounded corners=2pt,
+                    minimum height=7mm, minimum width=18mm, font=\small\ttfamily},
+  flow/.style    = {-{Stealth[length=2.4mm]}, thick, draw=cArrow},
+  recur/.style   = {-{Stealth[length=2.4mm]}, thick, draw=cCont!80!black, dashed},
+  lbl/.style     = {font=\scriptsize\itshape, text=black!65},
+  param/.style   = {font=\scriptsize, text=cBipolar!85!black},
+  shape/.style   = {font=\scriptsize\ttfamily, text=black!55},
+}
+
+\begin{document}
+\begin{tikzpicture}[node distance=6mm and 10mm]
+
+% =====================================================================
+% Row 1: token input → vocab lookup → cyclic rotation → recurrence
+% =====================================================================
+
+\node[io] (tok)  {token $x_t$};
+\node[bipolar, right=12mm of tok]                (vocab)    {vocab\_hv};
+\node[op,      right=8mm  of vocab]              (lookup)   {$[\,\cdot\,]$};
+\node[cont,    right=8mm  of lookup, fill=white, draw=cBipolar]
+                                                  (tokvec)   {$\mathbf{h}_t \in \{-1,+1\}^{d}$};
+\node[op,      right=10mm of tokvec]              (rot)      {$\rho^{\,t}$};
+\node[cont,    right=8mm  of rot, fill=white, draw=cBipolar]
+                                                  (rotated)  {$\rho^{t}(\mathbf{h}_t)$};
+
+% labels
+\node[param, above=0pt of vocab]   {$\mathbf{V}_{\!hv}\in\{-1,+1\}^{V\!\times d}$};
+\node[lbl,   below=0pt of lookup]  {lookup};
+\node[lbl,   below=0pt of rot]     {cyclic right-rotate by $t$};
+\node[shape, above=0pt of tokvec]  {(B, d)};
+\node[shape, above=0pt of rotated] {(B, d)};
+
+\draw[flow] (tok)     -- (lookup);
+\draw[flow] (vocab)   -- (lookup);
+\draw[flow] (lookup)  -- (tokvec);
+\draw[flow] (tokvec)  -- (rot);
+\draw[flow] (rot)     -- (rotated);
+
+% =====================================================================
+% Row 2: RWKV-style linear recurrence with continuous tanh state
+% =====================================================================
+
+\node[op, below=18mm of rot] (add)  {$+$};
+\node[op, left=10mm of add]  (mult) {$\odot$};
+
+\node[bipolar, left=12mm of mult, draw=cBipolar] (decay) {decay\_mask};
+\node[param, above=0pt of decay] {$\mathbf{m}\in\{-1,+1\}^{d}$};
+
+\node[cont, right=14mm of add]   (state) {$\mathbf{s}_t = \tanh(\cdot)$};
+\node[shape, above=0pt of state] {(B, d)};
+\node[lbl, below=0pt of state]   {continuous, bounded $(-1,+1)$};
+
+% recurrence wiring (state_{t-1} fed back into multiply)
+\draw[flow] (decay) -- (mult);
+\draw[flow] (mult)  -- (add);
+\draw[flow] (rotated) -- ++(0,-9mm) -| (add);
+\draw[flow] (add)   -- (state);
+
+% recurrent self-loop: s_{t-1} → multiply
+\coordinate (stateE) at ($(state.east)+(6mm,0)$);
+\draw[recur] (state.east) -- (stateE)
+              |- ($(mult.south)+(0,-10mm)$)
+              -| (mult.south);
+\node[lbl, anchor=west] at ($(stateE)+(2mm,0)$) {$\mathbf{s}_{t-1}$};
+
+% recurrence-block label
+\begin{pgfonlayer}{background}
+\node[draw=cCont!60, fill=cCont!5, rounded corners=4pt, inner sep=4mm,
+      fit=(decay)(mult)(add)(state)(stateE)]
+      (rec) {};
+\end{pgfonlayer}
+\node[font=\small\bfseries, text=cCont!70!black, anchor=north west]
+   at ($(rec.north west)+(2mm,-1mm)$) {RWKV-style linear recurrence (L=1)};
+
+% =====================================================================
+% Row 3: prototype-similarity output + sampler
+% =====================================================================
+
+\node[bipolar, below=22mm of state, draw=cBipolar] (proto) {prototype\_hv};
+\node[param, above=0pt of proto] {$\mathbf{P}_{\!hv}\in\{-1,+1\}^{V\!\times d}$};
+
+\node[op, right=10mm of proto]  (dot)   {$\langle\cdot,\cdot\rangle$};
+\node[op, right=8mm  of dot]    (div)   {$/\tau$};
+\node[cont, right=8mm of div, draw=cCont] (logits) {logits};
+\node[shape, above=0pt of logits] {(B, V)};
+
+\node[sampler, right=10mm of logits] (sample) {sampler\\softmax + top-$k$};
+\node[io, right=8mm of sample] (next) {next $x_{t+1}$};
+
+\draw[flow] (state.south) |- (dot);
+\draw[flow] (proto)       -- (dot);
+\draw[flow] (dot)         -- (div);
+\draw[flow] (div)         -- (logits);
+\draw[flow] (logits)      -- (sample);
+\draw[flow] (sample)      -- (next);
+
+% temperature label on the divide op
+\node[param, below=1pt of div] {$\tau = \exp(\log\!\tau)$};
+
+% autoregressive loop: next token feeds back to row-1 input on next step
+\draw[recur] (next.south) |- ($(tok.south)+(0,-32mm)$) -- (tok.south);
+\node[lbl, anchor=west] at ($(tok.south)+(0,-32mm)+(2mm,2mm)$)
+  {autoregressive feedback};
+
+% =====================================================================
+% Legend
+% =====================================================================
+\node[bipolar, anchor=north west, font=\scriptsize, minimum width=18mm, minimum height=5mm]
+   (legB) at ($(current bounding box.south west)+(0,-3mm)$) {bipolar param};
+\node[cont, right=2mm of legB, font=\scriptsize, minimum width=18mm, minimum height=5mm]
+   (legC) {continuous};
+\node[op, right=4mm of legC] (legOp) {$\cdot$};
+\node[font=\scriptsize, right=1mm of legOp] {elementwise op / dot product};
+\node[font=\scriptsize, right=6mm of legOp,xshift=46mm]
+  {$\rho^t$: cyclic right-rotation by $t$ (HDC binding)};
+
+% =====================================================================
+% Title / caption strip
+% =====================================================================
+\node[font=\bfseries, anchor=south] at ($(current bounding box.north)+(0,1mm)$)
+  {HDC-RWKV (nb12c) --- shipping architecture, $V{=}256$, $d{=}256$, $L{=}1$, $16{,}434$ B};
+
+\end{tikzpicture}
+\end{document}
