@@ -1,0 +1,362 @@
+% Wozformer — HDC-RWKV paper (Springer LNCS)
+%
+% Structure and every commitment tracked in docs/paper/PAPER_TRACKING.md.
+% Every empirical claim maps to a finding in docs/findings.md.
+% Figures in docs/figures/.
+%
+% Compile:
+%   pdflatex paper && bibtex paper && pdflatex paper && pdflatex paper
+%
+% If llncs.cls is unavailable, swap \documentclass line to `article` for
+% draft reading — the content still compiles.
+
+\documentclass[runningheads]{llncs}
+
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{tcolorbox}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\usetikzlibrary{positioning,arrows.meta,calc,fit,backgrounds,shapes.geometric}
+
+\tcbuselibrary{breakable,skins}
+
+\definecolor{cContribBg}{HTML}{EBF4FF}
+\definecolor{cContribBorder}{HTML}{2C5282}
+
+\newtcolorbox{contribbox}{
+  enhanced, colback=cContribBg, colframe=cContribBorder,
+  boxrule=0.6pt, arc=2pt, left=6pt, right=6pt, top=4pt, bottom=4pt,
+  fonttitle=\bfseries, title={Contributions of this paper}
+}
+
+\newcommand{\bipset}{\{-1,+1\}}
+\newcommand{\bV}{\mathbf{V}}
+\newcommand{\bP}{\mathbf{P}}
+\newcommand{\bm}{\mathbf{m}}
+\newcommand{\bh}{\mathbf{h}}
+\newcommand{\bs}{\mathbf{s}}
+\newcommand{\bz}{\mathbf{z}}
+\newcommand{\stesign}{\widetilde{\mathrm{sign}}}
+
+% ================================================================== metadata
+
+\title{HDC-RWKV: A Sub-16\,KB Binary Recurrent Language Model with
+       Hyperdimensional Position Binding}
+
+% TODO(user): author names, ORCIDs, affiliations, corresponding e-mail
+\titlerunning{HDC-RWKV: sub-16\,KB binary recurrent LM}
+\author{Author One\inst{1}\orcidID{0000-0000-0000-0000} \and
+        Author Two\inst{2}\orcidID{0000-0000-0000-0000}}
+\authorrunning{A.\ One and A.\ Two}
+\institute{Affiliation One \\ \email{author.one@example.org}
+      \and Affiliation Two \\ \email{author.two@example.org}}
+
+\begin{document}
+\maketitle
+
+% ============================================================= abstract
+
+\begin{abstract}
+Language modelling at extreme edge scales --- kilobytes of parameter storage,
+megahertz-class CPUs, no floating-point unit --- has remained the province of
+n-gram tables and character-level bigrams. We present \emph{HDC-RWKV}, a
+generative autoregressive language model in which every learnable parameter
+is bipolar $\{-1,+1\}$ at inference. The architecture combines
+Hyperdimensional Computing (HDC) primitives for position binding,
+RWKV-style linear recurrence for constant-cost memory, a continuous
+$\tanh$-bounded hidden state, and a prototype-similarity output layer, all
+trained end-to-end with the clipped Straight-Through Estimator. The
+shipping model occupies 16{,}434 bytes and evaluates at
+${\approx}135$\,K bit-operations per token, targets amenable to 1\,MHz
+8-bit hardware. Beyond the artifact, we contribute a systematic empirical
+characterisation of the binary recurrent family's limits: a
+scale-independent bits-per-character (BPC) ceiling near $2.93$ that
+survives eight-fold scaling; two component-relaxation ablations
+(int8 output projection; continuous per-channel decay) each of which fails
+to break the ceiling; and, when granted continuous freedom, the model's
+tendency to self-organise its decay parameters into a bimodal
+$\{0,1\}$ distribution --- evidence that the binary parameterisation is
+\emph{preferred} at this scale, not imposed. We frame the residual
+bottleneck as an information-capacity property of the bipolar hidden
+state, and outline the mechanism story this exposes.
+
+\keywords{Hyperdimensional Computing \and Binary Neural Networks \and
+          Recurrent Language Models \and RWKV \and Edge Deployment \and
+          Straight-Through Estimator.}
+\end{abstract}
+
+% ==================================================================== §1
+
+\section{Introduction}
+\label{sec:intro}
+
+Neural language models have grown by roughly six orders of magnitude in
+parameter count over the past decade, and inference at that scale is now
+inseparable from datacentre-class hardware. A parallel research direction,
+motivated by embedded and always-on inference, asks the opposite question:
+how much language capability survives at the \emph{low} end of the scale
+axis --- kilobytes rather than gigabytes, megahertz rather than gigahertz,
+integer arithmetic rather than floating point?
+
+Existing work at this scale is sparse and predominantly narrow. Binary
+neural network (BNN) research~\cite{courbariaux2016binaryconnect,qin2020binary}
+focuses on image classifiers rather than generative sequence models.
+Hyperdimensional Computing (HDC)~\cite{kanerva2009hyperdimensional,plate1995holographic}
+routinely operates on binary hypervectors, but its language applications
+have been restricted to classification and cleanup-memory tasks, not
+autoregressive text generation. Linear-recurrence sequence
+models~\cite{peng2023rwkv,gu2022s4,gu2023mamba} give constant-time-per-token
+inference, but published variants are floating-point at inference and
+targeted at tens-of-megabytes deployment.
+
+The gap this work addresses is a language model that (i) is generative and
+autoregressive, (ii) has every learnable parameter bipolar at inference,
+(iii) has constant-cost recurrence with no attention or key–value cache,
+and (iv) fits in tens of kilobytes.
+
+\subsection{Research question}
+
+\begin{quote}\itshape
+\textbf{RQ.} Can we train an autoregressive, sub-32~KB language model in
+which every learnable parameter is bipolar at inference, and characterise
+its quality/size trade-off well enough to identify the architectural
+bottleneck?
+\end{quote}
+
+The parameter budget is not arbitrary: it is chosen so the model fits
+directly into four AT28C64 EEPROM chips (32~KB total) addressable by a
+6502 CPU, giving a target platform that is deliberately unforgiving of
+floating-point, cache assumptions, or datatype flexibility.
+
+\subsection{A first equation}
+
+Before introducing notation formally in Section~\ref{sec:method}, we
+motivate what "bipolar deployment" costs. The shipping model has one
+embedding matrix, one prototype matrix, and one per-channel decay vector,
+all bipolar. Packed at one bit per entry, the deployment footprint is
+\begin{equation}
+\text{bytes}_{\text{deploy}} \;=\; \frac{2\,V\,d + L\,d}{8} \;+\; 2,
+\label{eq:bytes}
+\end{equation}
+where $V$ is the vocabulary size, $d$ the hypervector dimension, and $L$
+the number of recurrent layers (the trailing 2 bytes hold the fp16
+softmax temperature). At the shipping choice $V{=}256$, $d{=}256$,
+$L{=}1$, Equation~\ref{eq:bytes} evaluates to 16{,}418 bytes; a 16-byte
+file header brings the on-disk artifact to $16{,}434$ bytes.
+
+Constant-cost recurrence is the second property that makes the platform
+viable. Given a bipolar decay vector $\bm$, a continuous hidden state
+$\bs_{t-1} \in (-1,+1)^d$, and a rotated bipolar input $\bh_t \in \bipset^d$,
+\begin{equation}
+\bs_t \;=\; \tanh\!\bigl(\,\mathrm{sign}(\bm) \odot \bs_{t-1} \;+\; \bh_t\,\bigr).
+\label{eq:rec}
+\end{equation}
+Each channel updates in constant time regardless of sequence length; there
+is no softmax over $T$, no attention, no key--value cache. Equation~\ref{eq:rec}
+is the load-bearing observation from finding F10 in our tracker (documented
+in~\cite{karpathy2015tinyshakespeare} corpus experiments): binarising the
+state itself catastrophically degrades training, whereas keeping the state
+continuous while the \emph{weights} are bipolar succeeds.
+
+\subsection{Approach and contributions}
+
+Figure~\ref{fig:flow} shows the pipeline of the paper: we combine four
+established primitives --- HDC binding via cyclic permutation, RWKV-style
+linear recurrence, the clipped Straight-Through
+Estimator~\cite{bengio2013estimating}, and a prototype-similarity
+output --- into an architecture that has not appeared jointly in prior
+work, then measure its quality-to-size behaviour and analyse three
+independent ablations that constrain where its limits come from.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  node distance=6mm and 8mm,
+  every node/.style={font=\footnotesize},
+  step/.style={draw=cContribBorder, fill=cContribBg, thick, rounded corners=3pt,
+               minimum width=32mm, minimum height=8mm, align=center},
+  branch/.style={draw=black!35, fill=white, thick, rounded corners=3pt,
+                 minimum width=32mm, minimum height=8mm, align=center},
+  outcome/.style={draw=black!70, fill=black!5, thick, rounded corners=3pt,
+                  minimum width=32mm, minimum height=8mm, align=center},
+  arr/.style={-{Stealth[length=2mm]}, thick},
+]
+  \node[step] (rq)   {Research question\\{\scriptsize can a bipolar LM fit sub-32~KB?}};
+  \node[step, below=of rq] (arch) {HDC-RWKV\\{\scriptsize binding + recurrence + STE + prototype}};
+
+  \node[branch, below=of arch, xshift=-38mm] (b1) {baselines\\{\scriptsize bigram, dense, RWKV, HDC-Hebbian}};
+  \node[branch, below=of arch] (b2) {main model\\{\scriptsize $V{=}256, d{=}256$, 16~KB}};
+  \node[branch, below=of arch, xshift=38mm]  (b3) {ablations\\{\scriptsize int8 output; continuous decay}};
+
+  \node[outcome, below=of b2] (res) {Empirical results\\{\scriptsize BPC, generation, storage}};
+
+  \node[outcome, below=of res, xshift=-38mm] (out1) {F13: scale-independent\\{\scriptsize BPC ceiling $\approx 2.93$}};
+  \node[outcome, below=of res]              (out2) {F14/F15: neither output\\{\scriptsize nor decay is the bottleneck}};
+  \node[outcome, below=of res, xshift=38mm] (out3) {F16: model self-binarises\\{\scriptsize when given the choice}};
+
+  \draw[arr] (rq) -- (arch);
+  \draw[arr] (arch) -- (b1);
+  \draw[arr] (arch) -- (b2);
+  \draw[arr] (arch) -- (b3);
+  \draw[arr] (b1) -- (res);
+  \draw[arr] (b2) -- (res);
+  \draw[arr] (b3) -- (res);
+  \draw[arr] (res) -- (out1);
+  \draw[arr] (res) -- (out2);
+  \draw[arr] (res) -- (out3);
+\end{tikzpicture}
+\caption{Paper flow. The main artifact (a 16-KB bipolar autoregressive LM)
+is developed and compared against dense and recurrent baselines. Two
+independent architectural relaxations are ablated. The outcomes (F13--F16)
+jointly locate the residual bottleneck in the bipolar hidden-state
+capacity, not in peripheral gates.}
+\label{fig:flow}
+\end{figure}
+
+\begin{contribbox}
+\begin{enumerate}
+  \item An architecture that combines HDC binding, RWKV linear recurrence,
+        bipolar Straight-Through weights, and a prototype-similarity output
+        into a single generative autoregressive language model, deployable
+        as a 16{,}434-byte artifact.
+  \item A scale-independent bits-per-character (BPC) ceiling near $2.93$
+        for the binary HDC-RWKV family, confirmed across an eight-fold
+        parameter-count range (16~KB to 128~KB).
+  \item Two independent component-relaxation ablations --- int8 output
+        projection, and continuous per-channel decay --- neither of which
+        moves BPC by more than $0.03$, ruling out the two natural bottleneck
+        suspects.
+  \item An observed self-binarisation effect: when the model is given a
+        continuous decay parameter with full gradient access, it voluntarily
+        converges to a bimodal $\{0,1\}$ distribution over channels ---
+        strong evidence that the residual bottleneck is the bipolar hidden
+        state's information capacity, not any peripheral projection.
+\end{enumerate}
+\end{contribbox}
+
+\subsection{Non-contributions}
+
+To keep scrutiny tight we state what we do \emph{not} claim: (i) we do not
+beat dense floating-point transformers on BPC, and do not attempt to;
+(ii) our distillation results are single-configuration and are reported as
+an observation, not a generalisation~\cite{stanton2021does}; (iii) we
+introduce no new STE variant --- we use standard clipped
+STE~\cite{courbariaux2016binaryconnect}.
+
+\subsection{Paper organisation}
+
+Section~\ref{sec:related} places HDC-RWKV against related HDC, BNN, and
+linear-recurrence work. Section~\ref{sec:method} defines the architecture
+formally with equations and diagrams, presents the tokeniser choice and
+its measured effect on BPC, and recaps ablation variants that we do not
+ship. Section~\ref{sec:setup} lists the training corpus and hyperparameters.
+Section~\ref{sec:results} reports the main comparison table and per-finding
+subsections. Section~\ref{sec:analysis} discusses the bipolar-state
+capacity mechanism. Section~\ref{sec:deploy} outlines the deployment path.
+Section~\ref{sec:conclusion} concludes. Appendix~A provides a fully worked
+numerical trace of a training step and an inference step at $V{=}4, d{=}4$.
+
+% ==================================================================== §2
+
+\section{Related work}
+\label{sec:related}
+
+% TODO(claude): §2 draft — group by primitive (HDC, BNN, RWKV, distillation,
+% tiny LM edge deployment), then a comparison table with rows: (Kanerva
+% 2009 HDC classifier), (Courbariaux 2016 BinaryConnect classifier),
+% (Peng 2023 RWKV fp32 generative), (Karpathy tiny-LM char), (this work).
+% Columns: generative, bipolar-at-inference, constant-cost/token, deployment
+% bytes, corpus.
+
+% ==================================================================== §3
+
+\section{Proposed method}
+\label{sec:method}
+
+% TODO(claude): §3 draft.
+% 3.1 tokeniser & vocab; F6 story.
+% 3.2 architecture with Eq. 2–4 and inlined block diagram from
+%     docs/figures/architecture_hdc_rwkv.tex.
+% 3.3 loss (Eq. 5 NLL, Eq. 6 distillation).
+% 3.4 ablation lineage — variants we do not ship (channel mixing, int8
+%     prototype, continuous decay); reference forward to results.
+
+% ==================================================================== §4
+
+\section{Experimental setup}
+\label{sec:setup}
+
+% TODO(claude): §4 draft.
+% Corpus: Tiny Shakespeare, sizes, split ratio.
+% Hyperparameters table.
+% Hardware: T4 for training; deployment target hardware.
+% Reproducibility: seeds, code, checkpoint URLs.
+
+% ==================================================================== §5
+
+\section{Results}
+\label{sec:results}
+
+% TODO(claude): §5.
+% 5.1 main comparison table (bigram, dense small, RWKV, HDC-Hebbian, ours).
+% 5.2 F13 scale invariance — bar chart figure.
+% 5.3 F14 int8 output ablation.
+% 5.4 F15 continuous decay ablation + F16 self-binarisation histogram.
+% 5.5 distillation α-sweep (nb18) — pending.
+% 5.6 generation samples table.
+
+% ==================================================================== §6
+
+\section{Analysis: the bipolar-state capacity hypothesis}
+\label{sec:analysis}
+
+% TODO(claude): §6.
+% F16 self-binarisation → mechanism argument.
+% Bipolar d-dim state carries d bits per token; ceiling emerges from that.
+% What kind of relaxation would break the ceiling (larger d, multi-state,
+% mixture of bipolar states).
+
+% ==================================================================== §7
+
+\section{Deployment}
+\label{sec:deploy}
+
+% TODO(claude): §7 — write in "design" mode if firmware not landed.
+% Memory map for 6502.
+% ESP32 paged deployment.
+% Per-token cycle count analysis.
+
+% ==================================================================== §8
+
+\section{Conclusion and future work}
+\label{sec:conclusion}
+
+% TODO(claude): §8.
+% Restate the four contributions.
+% Future work: state relaxation (bigger d, multi-state), other corpora,
+% α-sweep for distillation, 6502 measurements if not in §7.
+
+% =============================================================== references
+
+\bibliographystyle{splncs04}
+\bibliography{references}
+
+% ============================================================= appendix
+
+\appendix
+
+\section{Appendix A: worked numerical trace at $V{=}4$, $d{=}4$}
+
+See the companion document
+\texttt{docs/figures/architecture\_walkthrough.tex}, which provides a
+complete numerical trace of a training step (forward, loss, backward)
+and an inference step (greedy and top-$k$) on a hand-verifiable toy
+instance of the shipping architecture.
+
+\end{document}
