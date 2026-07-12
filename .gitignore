@@ -39,3 +39,8 @@ firmware/arduino/build/
 data/*.txt.gz
 data/raw/
 .pip-tmp
+*.aux
+*.bbl
+*.log
+*.out
+*.blg

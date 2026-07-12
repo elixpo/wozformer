@@ -7,10 +7,27 @@
 % Compile:
 %   pdflatex paper && bibtex paper && pdflatex paper && pdflatex paper
 %
-% If llncs.cls is unavailable, swap \documentclass line to `article` for
-% draft reading — the content still compiles.
+% Springer LNCS class. Install on Debian/Ubuntu:
+%   sudo apt install texlive-publishers
+% Or download llncs.zip from Springer and drop llncs.cls next to this file.
+%
+% For local drafting without llncs installed, the two-line block below
+% substitutes an article-mode fallback. Comment out the fallback block
+% and uncomment the llncs line to switch back for the final version.
 
-\documentclass[runningheads]{llncs}
+% Final version (Springer):
+% \documentclass[runningheads]{llncs}
+
+% Draft fallback (no llncs required):
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=25mm]{geometry}
+\providecommand{\orcidID}[1]{}
+\providecommand{\inst}[1]{\textsuperscript{#1}}
+\providecommand{\titlerunning}[1]{}
+\providecommand{\authorrunning}[1]{}
+\providecommand{\institute}[1]{}
+\providecommand{\email}[1]{\texttt{#1}}
+\providecommand{\keywords}[1]{\par\noindent\textbf{Keywords:} #1}
 
 \usepackage{graphicx}
 \usepackage{amsmath,amssymb,amsthm}
@@ -179,7 +196,7 @@ independent ablations that constrain where its limits come from.
 \begin{tikzpicture}[
   node distance=6mm and 8mm,
   every node/.style={font=\footnotesize},
-  step/.style={draw=cContribBorder, fill=cContribBg, thick, rounded corners=3pt,
+  flowstep/.style={draw=cContribBorder, fill=cContribBg, thick, rounded corners=3pt,
                minimum width=32mm, minimum height=8mm, align=center},
   branch/.style={draw=black!35, fill=white, thick, rounded corners=3pt,
                  minimum width=32mm, minimum height=8mm, align=center},
@@ -187,8 +204,8 @@ independent ablations that constrain where its limits come from.
                   minimum width=32mm, minimum height=8mm, align=center},
   arr/.style={-{Stealth[length=2mm]}, thick},
 ]
-  \node[step] (rq)   {Research question\\{\scriptsize can a bipolar LM fit sub-32~KB?}};
-  \node[step, below=of rq] (arch) {HDC-RWKV\\{\scriptsize binding + recurrence + STE + prototype}};
+  \node[flowstep] (rq)   {Research question\\{\scriptsize can a bipolar LM fit sub-32~KB?}};
+  \node[flowstep, below=of rq] (arch) {HDC-RWKV\\{\scriptsize binding + recurrence + STE + prototype}};
 
   \node[branch, below=of arch, xshift=-38mm] (b1) {baselines\\{\scriptsize bigram, dense, RWKV, HDC-Hebbian}};
   \node[branch, below=of arch] (b2) {main model\\{\scriptsize $V{=}256, d{=}256$, 16~KB}};
@@ -344,7 +361,9 @@ numerical trace of a training step and an inference step at $V{=}4, d{=}4$.
 
 % =============================================================== references
 
-\bibliographystyle{splncs04}
+% Final version (with llncs): splncs04
+% Draft fallback (widely available):
+\bibliographystyle{plain}
 \bibliography{references}
 
 % ============================================================= appendix
