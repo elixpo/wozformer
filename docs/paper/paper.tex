@@ -18,7 +18,8 @@
 \documentclass[runningheads]{llncs}
 
 \usepackage{graphicx}
-\usepackage{amsmath,amssymb,amsthm}
+\usepackage{amsmath,amssymb}
+% amsthm removed: llncs defines its own \proof
 \usepackage{mathtools}
 \usepackage{booktabs}
 \usepackage{array}
@@ -475,15 +476,7 @@ Appendix~\ref{app:walkthrough}.
 
 \begin{figure}[t]
 \centering
-% Compact block diagram — placeholder box; final version includes the
-% standalone TikZ figure from docs/figures/architecture_hdc_rwkv.tex
-\fbox{\parbox{0.75\linewidth}{\centering \small
-\vspace{4mm}
-\emph{[Figure: compact HDC-RWKV block diagram — will be included from
-\texttt{docs/figures/architecture\_hdc\_rwkv.pdf} in the final
-build via \texttt{\textbackslash includegraphics}.]}
-\vspace{4mm}
-}}
+\includegraphics[width=0.98\linewidth]{../figures/architecture_hdc_rwkv.pdf}
 \caption{HDC-RWKV compact architecture. Bipolar tensors ($\widetilde\bV,
 \widetilde\bP, \widetilde\bm$) are drawn in blue; the continuous $\tanh$
 state is drawn in amber. The sampler (softmax + top-$k$) closes the
@@ -622,8 +615,7 @@ artefact.
 Fixed seed $1337$ for all runs. Training hardware: a single NVIDIA T4
 GPU (16~GB) for scaling ablations (Kaggle notebooks nb13--nb18); a
 consumer laptop CPU for baseline sanity checks. All code, notebooks,
-and checkpoints are available at the project repository (URL redacted
-for double-blind review); Appendix~\ref{app:walkthrough} additionally
+and checkpoints are available at the project repository (\url{https://github.com/elixpo/wozformer}); Appendix~\ref{app:walkthrough} additionally
 provides a hand-verifiable numerical trace on a toy instance.
 
 Table~\ref{tab:hparams} lists hyperparameter values for the shipping
@@ -1132,7 +1124,7 @@ generative models trained on public domain corpora.
 \subsection*{Reproducibility}
 All experiments in this paper use fixed random seed $1337$.
 Source, notebooks, and checkpoints are available at the project
-repository (URL redacted for review). Appendix~\ref{app:walkthrough}
+repository (\url{https://github.com/elixpo/wozformer}). Appendix~\ref{app:walkthrough}
 provides a hand-verifiable numerical trace on a toy instance.
 
 % =============================================================== references
@@ -1155,20 +1147,9 @@ shipping architecture with $V{=}4$, $d{=}4$, $T{=}3$, $L{=}1$. That
 document is designed for the reader who wants to reproduce every number
 in Equations~\ref{eq:embed}--\ref{eq:logits} by mental arithmetic.
 
-\begin{figure}[h]
+\begin{figure}[p]
 \centering
-\fbox{\parbox{0.85\linewidth}{\centering \small
-\vspace{4mm}
-\emph{[Figure: expanded HDC-RWKV architecture poster --- will be
-included from \texttt{docs/figures/architecture\_hdc\_rwkv\_expanded.pdf}
-in the final build via \texttt{\textbackslash includegraphics}. This
-poster opens every block from Figure~\ref{fig:archcompact} to show the
-cell-level operations: the vocabulary embedding table, the cyclic
-right-rotation acting on individual channels, the per-channel
-recurrence wiring, the stack of prototype dot products, and the STE
-forward/backward and XOR/popcount deployment equivalents.]}
-\vspace{4mm}
-}}
+\includegraphics[width=\linewidth,height=0.9\textheight,keepaspectratio]{../figures/architecture_hdc_rwkv_expanded.pdf}
 \caption{Expanded HDC-RWKV architecture poster. Each of the four
 blocks in Figure~\ref{fig:archcompact} is opened up to show its
 internal cell-level operations, with auxiliary panels for the
