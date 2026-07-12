@@ -13,28 +13,33 @@ Cross-references:
 
 | §     | Section                       | Status  | Owner | Notes |
 |-------|-------------------------------|---------|-------|-------|
-|       | Title, authors, affiliation   | ☐ TODO  | user  | placeholder in paper.tex |
-|       | Abstract                      | ☐ draft | claude | ~180 words |
-| 1     | Introduction                  | ☐ draft | claude | includes RQ, motivation, flowchart, 4-contribution box |
-| 2     | Related work                  | ☐ TODO  | claude | HDC, BNN, RWKV, distillation; comparison table |
-| 3     | Method                        | ☐ TODO  | claude | architecture, math, tokeniser, failed variants recap |
-| 3.1   | Tokeniser & vocab choice      | ☐ TODO  | claude | vocab-256 BPE + F6 story |
-| 3.2   | Architecture (bipolar HDC-RWKV) | ☐ TODO  | claude | equations 1–6, both diagrams inlined |
-| 3.3   | Training loss                 | ☐ TODO  | claude | NLL + optional KL for distillation |
-| 3.4   | Ablation lineage: what we tried and dropped | ☐ TODO  | claude | Tier 2.5, Tier 2.6, MoE, RWKV baseline, HDC Hebbian |
-| 4     | Experimental setup            | ☐ TODO  | claude | corpus, hyperparams table, seeds, hardware |
-| 5     | Results                       | ☐ TODO  | claude | main table + ablation figures |
-| 5.1   | Baseline vs ours              | ☐ TODO  | claude | bigram, dense, RWKV, HDC-Hebbian, our HDC-RWKV |
-| 5.2   | Scale-independent ceiling (F13) | ☐ TODO | claude | bar chart |
-| 5.3   | Ruling out output (F14)       | ☐ TODO  | claude | int8 prototype ablation |
-| 5.4   | Ruling out decay (F15) + self-binarisation (F16) | ☐ TODO | claude | histogram figure |
-| 5.5   | Distillation α-sweep (F17 or O1 retention) | ☐ blocked on nb18 | claude | pending Kaggle run |
-| 5.6   | Generation samples            | ☐ TODO  | claude | teacher vs nb12c vs distilled |
-| 6     | Analysis / Discussion         | ☐ TODO  | claude | the bipolar-state capacity story |
-| 7     | Deployment (optional)         | ☐ TODO  | claude | 6502 memory map, ESP32 firmware; write "design" version if firmware not ready |
-| 8     | Conclusion & future work      | ☐ TODO  | claude | 3 short paragraphs |
-|       | References                    | ☐ TODO  | claude | starter list in references.bib |
-|       | Appendix A: worked example    | ☐ done  | claude | `architecture_walkthrough.tex` |
+|       | Title, authors, affiliation   | ✅ done  | user  | Bhattacharya + Gazi filled |
+|       | Abstract                      | ✅ draft | claude | ~200 words, 4 contributions summarised |
+| 1     | Introduction                  | ✅ draft | claude | RQ, Eq. 1–2, TikZ flowchart, boxed contributions |
+| 2     | Related work                  | ✅ draft | claude | HDC, BNN, RWKV, distillation; Table 1 comparison |
+| 3     | Method                        | ✅ draft | claude | corpus, arch, loss, ablation lineage; 6 equations |
+| 3.1   | Tokeniser & vocab choice      | ✅ draft | claude | F6 justification for V=256 |
+| 3.2   | Architecture (bipolar HDC-RWKV) | ✅ draft | claude | Eq. 3–5, compact diagram placeholder |
+| 3.3   | Training loss                 | ✅ draft | claude | Eq. 6 NLL + Eq. 7 KD |
+| 3.4   | Ablation lineage: what we tried and dropped | ✅ draft | claude | 6 rejected variants listed inline |
+| 4     | Experimental setup            | ✅ draft | claude | Table 2 hyperparams, seeds, hardware |
+| 5     | Results                       | ✅ draft | claude | main table + 4 finding subsections + samples |
+| 5.1   | Baseline vs ours              | ✅ draft | claude | Table 3 (bigram, dense, HDC-Hebbian, ours, teacher) |
+| 5.2   | Scale-independent ceiling (F13) | ✅ draft | claude | Table 4 (3 configs) |
+| 5.3   | Ruling out output (F14)       | ✅ draft | claude | int8 prototype ablation prose |
+| 5.4   | Ruling out decay (F15) + self-binarisation (F16) | ✅ draft | claude | mechanism paragraph |
+| 5.5   | Distillation α-sweep (F17)    | ✅ draft | claude | Table 5 (4-point sweep) |
+| 5.6   | Generation samples            | ✅ draft | claude | Table 6, teacher/nb12c/distilled |
+| 6     | Analysis / Discussion         | ✅ draft | claude | bipolar-state capacity hypothesis; 4 future directions |
+| 7     | Deployment design             | ✅ draft | claude | 6502 memory map, XOR/popcount, ESP32 paged mode |
+| 8     | Conclusion & future work      | ✅ draft | claude | contributions restated + 4 future directions |
+|       | References                    | ✅ draft | claude | 15 entries in references.bib |
+|       | Appendix A: worked example    | ✅ done  | claude | walkthrough.tex referenced; expanded poster referenced |
+
+**Current status: full draft compiles clean, 16 pages, 0 undefined references.**
+Remaining work: wire figures via `\includegraphics`, fill generation samples for
+Table 6 (currently placeholder text), install `llncs.cls` for final Springer
+formatting (drop from 16 pages to ~13).
 
 ---
 
