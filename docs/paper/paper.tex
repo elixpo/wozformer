@@ -36,12 +36,6 @@
 \definecolor{cContribBg}{HTML}{EBF4FF}
 \definecolor{cContribBorder}{HTML}{2C5282}
 
-\newtcolorbox{contribbox}{
-  enhanced, colback=cContribBg, colframe=cContribBorder,
-  boxrule=0.6pt, arc=2pt, left=6pt, right=6pt, top=4pt, bottom=4pt,
-  fonttitle=\bfseries, title={Contributions of this paper}
-}
-
 \newcommand{\bipset}{\{-1,+1\}}
 \newcommand{\bV}{\mathbf{V}}
 \newcommand{\bP}{\mathbf{P}}
@@ -118,74 +112,66 @@ axis --- kilobytes rather than gigabytes, megahertz rather than gigahertz,
 integer arithmetic rather than floating point?
 
 Existing work at this scale is sparse and predominantly narrow. Binary
-neural network (BNN) research~\cite{courbariaux2016binaryconnect,qin2020binary}
-focuses on image classifiers rather than generative sequence models.
-Hyperdimensional Computing (HDC)~\cite{kanerva2009hyperdimensional,plate1995holographic}
+neural network (BNN)
+research~\cite{courbariaux2016binaryconnect,qin2020binary} focuses on image
+classifiers rather than generative sequence models. Hyperdimensional
+Computing (HDC)~\cite{kanerva2009hyperdimensional,plate1995holographic}
 routinely operates on binary hypervectors, but its language applications
 have been restricted to classification and cleanup-memory tasks, not
 autoregressive text generation. Linear-recurrence sequence
 models~\cite{peng2023rwkv,gu2022s4,gu2023mamba} give constant-time-per-token
 inference, but published variants are floating-point at inference and
-targeted at tens-of-megabytes deployment.
+targeted at tens-of-megabytes deployment. The intersection of these three
+lines --- a language model that is simultaneously generative and
+autoregressive, has every learnable parameter bipolar at inference, has
+constant-cost recurrence with no attention or key--value cache, and fits
+in tens of kilobytes --- is empty in prior work. This paper asks whether
+that intersection can be filled: whether we can train an autoregressive,
+sub-32\,KB language model in which every learnable parameter is bipolar at
+inference, and characterise its quality-versus-size trade-off well enough
+to identify the architectural bottleneck. The 32\,KB budget is not
+arbitrary; it is chosen so the model fits directly into four AT28C64
+EEPROM chips addressable by a 1\,MHz Rockwell 6502 CPU, a target platform
+that is deliberately unforgiving of floating-point, cache assumptions, or
+datatype flexibility.
 
-The gap this work addresses is a language model that (i) is generative and
-autoregressive, (ii) has every learnable parameter bipolar at inference,
-(iii) has constant-cost recurrence with no attention or key–value cache,
-and (iv) fits in tens of kilobytes.
-
-\subsection{Research question}
-
-\begin{quote}\itshape
-\textbf{RQ.} Can we train an autoregressive, sub-32~KB language model in
-which every learnable parameter is bipolar at inference, and characterise
-its quality/size trade-off well enough to identify the architectural
-bottleneck?
-\end{quote}
-
-The parameter budget is not arbitrary: it is chosen so the model fits
-directly into four AT28C64 EEPROM chips (32~KB total) addressable by a
-6502 CPU, giving a target platform that is deliberately unforgiving of
-floating-point, cache assumptions, or datatype flexibility.
-
-\subsection{A first equation}
-
-Before introducing notation formally in Section~\ref{sec:method}, we
-motivate what "bipolar deployment" costs. The shipping model has one
-embedding matrix, one prototype matrix, and one per-channel decay vector,
-all bipolar. Packed at one bit per entry, the deployment footprint is
+The scale of the challenge is set by two quantities. First, the deployment
+footprint. The shipping model has one embedding matrix, one prototype
+matrix, and one per-channel decay vector, all bipolar; packed at one bit
+per entry, the total storage is
 \begin{equation}
 \text{bytes}_{\text{deploy}} \;=\; \frac{2\,V\,d + L\,d}{8} \;+\; 2,
 \label{eq:bytes}
 \end{equation}
 where $V$ is the vocabulary size, $d$ the hypervector dimension, and $L$
 the number of recurrent layers (the trailing 2 bytes hold the fp16
-softmax temperature). At the shipping choice $V{=}256$, $d{=}256$,
-$L{=}1$, Equation~\ref{eq:bytes} evaluates to 16{,}418 bytes; a 16-byte
-file header brings the on-disk artifact to $16{,}434$ bytes.
-
-Constant-cost recurrence is the second property that makes the platform
-viable. Given a bipolar decay vector $\bm$, a continuous hidden state
-$\bs_{t-1} \in (-1,+1)^d$, and a rotated bipolar input $\bh_t \in \bipset^d$,
+softmax temperature). At our shipping choice $V{=}256$, $d{=}256$,
+$L{=}1$, Equation~\ref{eq:bytes} evaluates to $16{,}418$ bytes; a 16-byte
+file header brings the on-disk artifact to $16{,}434$ bytes. Second, the
+per-token compute. Given a bipolar decay vector $\bm$, a continuous hidden
+state $\bs_{t-1} \in (-1,+1)^{d}$, and a rotated bipolar input
+$\bh_t \in \bipset^{d}$, our recurrence is
 \begin{equation}
 \bs_t \;=\; \tanh\!\bigl(\,\mathrm{sign}(\bm) \odot \bs_{t-1} \;+\; \bh_t\,\bigr).
 \label{eq:rec}
 \end{equation}
 Each channel updates in constant time regardless of sequence length; there
-is no softmax over $T$, no attention, no key--value cache. Equation~\ref{eq:rec}
-is the load-bearing observation from finding F10 in our tracker (documented
-in~\cite{karpathy2015tinyshakespeare} corpus experiments): binarising the
-state itself catastrophically degrades training, whereas keeping the state
-continuous while the \emph{weights} are bipolar succeeds.
+is no softmax over $T$, no attention, no key--value cache.
+Equation~\ref{eq:rec} embeds a subtle but load-bearing choice: the weights
+are bipolar but the state is continuous. Binarising the state itself
+catastrophically degrades training (a diverging validation loss reported
+in Section~\ref{sec:results}), whereas the "bipolar weights, continuous
+tanh-bounded state" combination trains stably at the scales we consider.
 
-\subsection{Approach and contributions}
-
-Figure~\ref{fig:flow} shows the pipeline of the paper: we combine four
-established primitives --- HDC binding via cyclic permutation, RWKV-style
-linear recurrence, the clipped Straight-Through
+Figure~\ref{fig:flow} places the paper's argument in one diagram. We
+combine four established primitives --- HDC binding via cyclic
+permutation, RWKV-style linear recurrence, the clipped Straight-Through
 Estimator~\cite{bengio2013estimating}, and a prototype-similarity
-output --- into an architecture that has not appeared jointly in prior
-work, then measure its quality-to-size behaviour and analyse three
-independent ablations that constrain where its limits come from.
+output --- into an architecture (HDC-RWKV) that has not appeared jointly
+in prior work, measure its quality-to-size behaviour against
+representative baselines, and use two independent architectural
+relaxations (int8 output projection; continuous per-channel decay) to
+constrain where the residual bottleneck of the family lies.
 
 \begin{figure}[t]
 \centering
@@ -232,48 +218,28 @@ capacity, not in peripheral gates.}
 \label{fig:flow}
 \end{figure}
 
-\begin{contribbox}
-\begin{enumerate}
-  \item An architecture that combines HDC binding, RWKV linear recurrence,
-        bipolar Straight-Through weights, and a prototype-similarity output
-        into a single generative autoregressive language model, deployable
-        as a 16{,}434-byte artifact.
-  \item A scale-independent bits-per-character (BPC) ceiling near $2.93$
-        for the binary HDC-RWKV family, confirmed across an eight-fold
-        parameter-count range (16~KB to 128~KB).
-  \item Two independent component-relaxation ablations --- int8 output
-        projection, and continuous per-channel decay --- neither of which
-        moves BPC by more than $0.03$, ruling out the two natural bottleneck
-        suspects.
-  \item An observed self-binarisation effect: when the model is given a
-        continuous decay parameter with full gradient access, it voluntarily
-        converges to a bimodal $\{0,1\}$ distribution over channels ---
-        strong evidence that the residual bottleneck is the bipolar hidden
-        state's information capacity, not any peripheral projection.
-\end{enumerate}
-\end{contribbox}
-
-\subsection{Non-contributions}
-
-To keep scrutiny tight we state what we do \emph{not} claim: (i) we do not
-beat dense floating-point transformers on BPC, and do not attempt to;
-(ii) our distillation results are single-configuration and are reported as
-an observation, not a generalisation~\cite{stanton2021does}; (iii) we
-introduce no new STE variant --- we use standard clipped
-STE~\cite{courbariaux2016binaryconnect}.
-
-\subsection{Paper organisation}
-
-Section~\ref{sec:related} places HDC-RWKV against related HDC, BNN, and
-linear-recurrence work. Section~\ref{sec:method} defines the architecture
-formally with equations and diagrams, presents the tokeniser choice and
-its measured effect on BPC, and recaps ablation variants that we do not
-ship. Section~\ref{sec:setup} lists the training corpus and hyperparameters.
-Section~\ref{sec:results} reports the main comparison table and per-finding
-subsections. Section~\ref{sec:analysis} discusses the bipolar-state
-capacity mechanism. Section~\ref{sec:deploy} outlines the deployment path.
-Section~\ref{sec:conclusion} concludes. Appendix~A provides a fully worked
-numerical trace of a training step and an inference step at $V{=}4, d{=}4$.
+The paper's contributions are:
+(1) an architecture that combines HDC binding, RWKV linear recurrence,
+bipolar Straight-Through weights, and a prototype-similarity output into
+a single generative autoregressive language model, deployable as a
+$16{,}434$-byte artifact;
+(2) a scale-independent bits-per-character (BPC) ceiling near $2.93$
+for the binary HDC-RWKV family, confirmed across an eight-fold parameter
+range from 16\,KB to 128\,KB;
+(3) two independent component-relaxation ablations --- an int8 output
+projection and a continuous per-channel decay --- neither of which moves
+BPC by more than $0.03$, ruling out the two natural bottleneck suspects;
+and
+(4) an observed self-binarisation effect --- when the model is granted a
+continuous decay parameter with full gradient access, it voluntarily
+converges to a bimodal $\{0,1\}$ distribution over channels, evidence
+that the residual bottleneck is the bipolar hidden state's information
+capacity rather than any peripheral projection.
+We do not claim to beat dense floating-point transformers on BPC and do
+not attempt to; our distillation results are single-configuration and
+consistent with the capacity-mismatch analysis of
+Stanton et al.~\cite{stanton2021does}; and we introduce no new STE variant,
+using standard clipped STE~\cite{courbariaux2016binaryconnect} throughout.
 
 % ==================================================================== §2
 
@@ -478,9 +444,8 @@ prior work:
 \end{enumerate}
 
 Figure~\ref{fig:archcompact} depicts the block-level dataflow at the
-shipping dimensions. A fully expanded version showing internal cell-level
-operations is included as Figure~\ref{fig:archexpanded} in
-Section~\ref{sec:walkthrough}.
+shipping dimensions. Section~\ref{sec:archexpanded} opens up the
+internals of each block as four separate full-width figures.
 
 \begin{figure}[t]
 \centering
@@ -588,94 +553,116 @@ The compact block diagram of Figure~\ref{fig:archcompact} suffices for
 the mathematical exposition of Section~\ref{sec:method}. However,
 several design choices that distinguish HDC-RWKV from prior recurrent
 architectures are only visible when the internals of each block are
-opened up. Figure~\ref{fig:archexpanded} does so, on a single page,
-using a deliberately narrow slice of the shipping dimensions ($d{=}8$
-sample cells drawn from the full $d{=}256$; $V{=}4$ sample rows drawn
-from the full $V{=}256$).
+opened up. This section does so with four grouped figures, each drawn
+at full page width, using a deliberately narrow slice of the shipping
+dimensions ($d{=}8$ cells sampled from the full $d{=}256$; $V{=}4$ rows
+sampled from the full $V{=}256$).
 
-The figure decomposes the forward pass into six panels, plus two
-auxiliary panels for training-time and deployment-time equivalents:
+\paragraph{Input primitives (Blocks 1 and 2).}
+Block~1 exposes the vocabulary embedding $\widetilde\bV$ as a
+$V\times d$ bipolar table. Row indexing by a token id $x_t$ selects
+one bipolar row of length $d$, drawn in blue: blue-filled cells encode
+$+1$ and blue-outlined cells encode $-1$. No arithmetic is performed
+at this stage; the lookup is a pure memory access, one byte-aligned
+$d/8$-byte read at deployment. Block~2 shows position binding
+$\rho^{t}$: the selected row is cyclically right-rotated by $t$
+positions, so cell at index $j$ takes the value previously held at
+$(j-t)\bmod d$. This is the HDC binding
+operation~\cite{kanerva2009hyperdimensional}, unitary on
+$\bipset^{d}$, self-inverse, and consuming zero learnable parameters
+and zero deployment bytes. Figure~\ref{fig:archInput} shows both
+blocks side by side.
 
-\paragraph{Block 1 --- Token lookup (Eq.~\ref{eq:embed}).}
-The vocabulary embedding $\widetilde\bV$ is shown as a $V\times d$
-bipolar table. Row indexing by a token id $x_t$ selects one bipolar
-row of length $d$, drawn in blue; blue-filled cells encode $+1$ and
-blue-outlined cells encode $-1$. No arithmetic is performed at this
-stage --- the lookup is a pure memory access, one byte-aligned $d/8$-byte
-read at deployment.
-
-\paragraph{Block 2 --- Position binding $\rho^{t}$ (Eq.~\ref{eq:embed}).}
-The selected row is cyclically right-rotated by $t$ positions. The
-figure exemplifies $t{=}2$: each cell at index $j$ takes the value
-previously held at $(j-t)\bmod d$. This is the HDC binding
-operation~\cite{kanerva2009hyperdimensional}. It is unitary on
-$\bipset^{d}$, self-inverse ($\rho^{-t}$ decodes), and consumes zero
-learnable parameters and zero deployment bytes.
-
-\paragraph{Block 3a --- Recurrence, per-channel detail (Eq.~\ref{eq:recur}).}
-The recurrence acts channel-wise: each of the $d$ output channels of
-$\bs_t$ depends only on its own previous value, the corresponding
-$\widetilde\bm$ bit, and the corresponding input bit. Block 3a traces
-one such channel (channel $i{=}2$) end-to-end, exposing the
-$\odot$-then-$+$-then-$\tanh$ pipeline and giving a fully worked
-arithmetic example ($(+1)(0.55) + (-1) = -0.45$, $\tanh(-0.45)
-\approx -0.42$). The bipolar decay and continuous state coexist here
-in one row; this is the ``weights binary, activations continuous''
-resolution of finding F10.
-
-\paragraph{Block 3b --- Recurrence, unrolled across time.}
-The same operator, viewed as a chain of $\mathcal{R}$ boxes over
-time. Each step receives a position-tagged bipolar input from
-Block~2 and produces a continuous state consumed by the next
-$\mathcal{R}$. No key--value cache is materialised; the entire
-per-token compute is $O(d)$ regardless of how long the context has
-grown, which is the property that makes 1~MHz-class deployment
-feasible.
-
-\paragraph{Block 4a --- Prototype-similarity output (Eq.~\ref{eq:logits}).}
-The current continuous state $\bs_t$ is dotted, in parallel, with
-each of the $V$ bipolar prototype rows to produce a raw logit vector
-of length $V$. Because both operands to the dot product have known
-element-wise ranges ($\bs_t \in (-1,+1)^d$; $\widetilde\bP_v \in
-\bipset^d$), each raw logit is bounded by $\pm d$, and typical
-values under randomly-oriented state lie near $\pm\sqrt{d}$. The
-symmetry with Block~1 (both are sign-quantised dot products against
-the state's representational space) means one deployment kernel
-serves both directions.
-
-\paragraph{Block 4b --- Sampler chain.}
-Raw logits are divided by $\tau$, softmaxed, top-$k$-filtered, and
-sampled; the resulting token id enters Block~1 at the next step
-(dashed autoregressive loop). This is the only floating-point
-operation in the forward pass; the softmax LUT and inverse-CDF
-sampling can both be table-mediated at deployment.
-
-\paragraph{Aux A --- Straight-Through Estimator.}
-Forward: hard $\mathrm{sign}(\cdot)$. Backward: identity on the
-active strip $[-1,+1]$, zero outside. This is the only mechanism by
-which the continuous shadow parameters $\bV, \bP, \bm$ ever change
-during training. At deployment the STE path does not exist; the
-model is exactly the sign of its trained shadows.
-
-\paragraph{Aux B --- XOR/popcount deployment equivalent.}
-Under the encoding $-1\mapsto 0, +1\mapsto 1$, the bipolar dot
-product reduces exactly to $d - 2\cdot\text{popcount}(\bar a\oplus
-\bar b)$ (also stated as Eq.~\ref{eq:xorpop} in
-Section~\ref{sec:deploy}). This is the primitive the on-silicon
-inference kernel uses; it is entirely integer, requires no
-multiplication, and cannot produce a NaN.
-
-\begin{figure}[H]
+\begin{figure}[!ht]
 \centering
-\includegraphics[width=\linewidth,height=0.9\textheight,keepaspectratio]{../figures/architecture_hdc_rwkv_expanded.pdf}
-\caption{Expanded HDC-RWKV architecture. Each of the four blocks in
-Figure~\ref{fig:archcompact} occupies its own full-width row (3a/3b
-and 4a/4b split their internal detail across two rows). The two
-auxiliary panels at the bottom show the training-time STE and the
-deployment-time XOR/popcount equivalent. Cells drawn in blue are
-bipolar tensors; cells drawn in amber are the continuous
-$\tanh$-bounded state.}
-\label{fig:archexpanded}
+\includegraphics[width=\linewidth]{../figures/arch_expand_input.pdf}
+\caption{Blocks 1 and 2 of the expansion. Left/top: bipolar embedding
+table; the arrow illustrates a lookup for token id $x_t = 1$.
+Right/bottom: cyclic right-rotation with $t=2$; index $j$ after the
+rotation receives the value that occupied index $(j-2)\bmod d$ before.}
+\label{fig:archInput}
+\end{figure}
+
+\paragraph{Recurrence (Blocks 3a and 3b).}
+Block~3a traces one channel of the recurrence end-to-end
+(Equation~\ref{eq:recur}): channel $i{=}2$ produces
+$(+1)(0.55) + (-1) = -0.45$, then $\tanh(-0.45) \approx -0.42$. All
+$d$ channels share the same $\odot$-then-$+$-then-$\tanh$ pipeline;
+the update is embarrassingly parallel across channels and,
+critically, uses bipolar decay and continuous state in one line ---
+the ``weights binary, activations continuous'' resolution
+of finding F10. Block~3b views the same operator as a chain of
+$\mathcal{R}$ boxes over time. Each step receives a bipolar input
+from Block~2 and produces a continuous state consumed by the next
+$\mathcal{R}$; no key--value cache is materialised. Per-token
+compute is $O(d)$ regardless of how long the context has grown ---
+the property that makes 1~MHz-class deployment feasible.
+Figure~\ref{fig:archRecurrence} shows both views.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=\linewidth]{../figures/arch_expand_recurrence.pdf}
+\caption{Blocks 3a and 3b. Top: per-channel wiring at one timestep,
+with channel $i{=}2$ shaded to expose the fully worked arithmetic.
+Bottom: the same operator seen as a stateful chain across timesteps,
+with each $\mathcal{R}$ box receiving one bipolar input from
+Block~2.}
+\label{fig:archRecurrence}
+\end{figure}
+
+\paragraph{Output and sampler (Blocks 4a and 4b).}
+Block~4a computes the prototype-similarity output
+(Equation~\ref{eq:logits}): the current continuous state $\bs_t$ is
+dotted, in parallel, with each of the $V$ bipolar prototype rows to
+produce a raw logit vector of length $V$. Because both operands to
+the dot product have known element-wise ranges ($\bs_t \in
+(-1,+1)^d$; $\widetilde\bP_v \in \bipset^d$), each raw logit is
+bounded by $\pm d$; typical values under a randomly-oriented state
+lie near $\pm\sqrt{d}$. The symmetry with Block~1 (both are
+sign-quantised dot products against the state's representational
+space) means a single deployment kernel serves both directions.
+Block~4b then divides the raw logits by $\tau$, softmaxes them,
+top-$k$-filters, and samples; the emitted token is fed back to
+Block~1 at the next step (dashed loop). This is the only
+floating-point operation in the forward pass; softmax and
+inverse-CDF sampling are both table-mediated at deployment.
+Figure~\ref{fig:archOutput} shows both blocks.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=\linewidth]{../figures/arch_expand_output.pdf}
+\caption{Blocks 4a and 4b. Top: the current continuous state on the
+top row, the bipolar prototype matrix stacked below, and one dot
+product per vocabulary item on the right. Bottom: raw logits are
+divided by $\tau$, softmaxed, top-$k$-sampled, and fed back to
+Block~1 through the autoregressive loop.}
+\label{fig:archOutput}
+\end{figure}
+
+\paragraph{Auxiliary panels (training-time and deployment-time equivalents).}
+The clipped Straight-Through Estimator, shown in Aux~A, is the only
+mechanism by which the continuous shadow parameters $\bV$, $\bP$,
+$\bm$ ever change during training. Forward is hard $\mathrm{sign}$;
+backward is identity on the active strip $[-1,+1]$ and zero outside.
+At deployment the STE path does not exist; the model is exactly the
+sign of its trained shadows. Aux~B shows the bit-arithmetic
+equivalent that a 1~MHz CPU actually computes: under the encoding
+$-1\mapsto 0, +1\mapsto 1$, the bipolar dot product reduces exactly
+to $d - 2\cdot\mathrm{popcount}(\bar a\oplus \bar b)$ (also stated
+as Equation~\ref{eq:xorpop} in Section~\ref{sec:deploy}). This is
+the primitive the on-silicon inference kernel uses; it is entirely
+integer, requires no multiplication, and cannot produce a NaN.
+Figure~\ref{fig:archAux} shows both panels.
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=\linewidth]{../figures/arch_expand_aux.pdf}
+\caption{Training-time and deployment-time equivalents. Top: the
+clipped STE forward and backward, showing why the sign of a
+continuous shadow can be trained by ordinary backpropagation. Bottom:
+the XOR/popcount identity that replaces every bipolar dot product on
+the 6502.}
+\label{fig:archAux}
 \end{figure}
 
 % ==================================================================== §5
@@ -714,14 +701,14 @@ the recurrence sees):
 \widetilde\bm = (+1,+1,+1,+1),\;\;\tau = \sqrt{d} = 2.
 \]
 
-\paragraph{Step 1 --- Lookup and position binding (Eq.~\ref{eq:embed}).}
+\paragraph{Step 1 --- Lookup and position binding (Equation~\ref{eq:embed}).}
 For $t{=}0$ (token 0), $\bh_0 = \rho^{0}(\widetilde\bV_0) = (+1,-1,+1,-1)$.
 For $t{=}1$ (token 1), $\rho^{1}$ rotates $(-1,+1,-1,+1)$ right by one
 position, giving $\bh_1 = (+1,-1,+1,-1)$. For $t{=}2$ (token 2),
 $\rho^{2}$ rotates $(+1,+1,-1,-1)$ right by two positions, giving
 $\bh_2 = (-1,-1,+1,+1)$.
 
-\paragraph{Step 2 --- Recurrence (Eq.~\ref{eq:recur}).}
+\paragraph{Step 2 --- Recurrence (Equation~\ref{eq:recur}).}
 With $\widetilde\bm = \mathbf{1}$, the update reduces to
 $\bs_t = \tanh(\bs_{t-1} + \bh_t)$. Starting from $\bs_{-1} = \mathbf{0}$:
 \begin{align*}
@@ -730,7 +717,7 @@ $\bs_t = \tanh(\bs_{t-1} + \bh_t)$. Starting from $\bs_{-1} = \mathbf{0}$:
 \bs_2 &= \tanh(\bs_1 + \bh_2) \approx (-0.057,\,-0.960,\,+0.960,\,+0.057).
 \end{align*}
 
-\paragraph{Step 3 --- Logits and loss (Eqs.~\ref{eq:logits}, \ref{eq:nll}).}
+\paragraph{Step 3 --- Logits and loss (Equations~\ref{eq:logits}, \ref{eq:nll}).}
 At $t{=}2$ with target $y_2 = 3$:
 \[
 \widetilde\bP\,\bs_2 = (-2.033,\,\phantom{-}0.000,\,+1.807,\,+0.113),
@@ -798,11 +785,10 @@ cross-run comparisons.
 We report both the \emph{soft} validation loss (STE-forward, matching
 the training-time forward pass) and the \emph{hard} validation loss
 (all bipolar parameters replaced by $\mathrm{sign}(\cdot)$ with no
-STE, matching the exact deployment forward pass). The methodology
-note M1 in the findings tracker verifies that these agree within
-$0.02$--$0.05$ nats across all HDC-RWKV configurations tested, so
-any observed quality ceiling is architectural and not a quantisation
-artefact.
+STE, matching the exact deployment forward pass). Across every
+HDC-RWKV configuration in Section~\ref{sec:results} the two agree
+within $0.02$--$0.05$~nats, so any observed quality ceiling is
+architectural and not a quantisation artefact.
 
 \paragraph{Reproducibility.}
 Fixed seed $1337$ for all runs. Training hardware: a single NVIDIA T4
