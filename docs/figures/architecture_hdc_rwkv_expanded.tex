@@ -85,7 +85,7 @@
 % BLOCK 1 — Token lookup
 % =====================================================================
 \begin{scope}[shift={(0,-3)}]
-  \node[block, minimum height=56mm, anchor=north west] (B1) at (0,0) {};
+  \node[block, minimum height=56mm, anchor=north west, minimum width=705pt] (B1) at (0,0) {};
   \node[blockTitle] at (B1.north west)
     {\textcolor{cBipolar}{Block 1.}\;\;Token lookup --- bipolar embedding table};
 
@@ -277,7 +277,7 @@
 % BLOCK 4a — Prototype output: dot products (own row)
 % =====================================================================
 \begin{scope}[shift={(0,-35)}]
-  \node[block, minimum height=80mm, anchor=north west] (B4a) at (0,0) {};
+  \node[block, minimum height=80mm, anchor=north west, minimum width=696pt] (B4a) at (0,0.01) {};
   \node[blockTitle] at (B4a.north west)
     {\textcolor{cSampler!75!black}{Block 4a.}\;\;Prototype-similarity output --- one dot product per vocabulary item};
 
@@ -330,7 +330,7 @@
 % BLOCK 4b — Softmax → sampler → next token (own row)
 % =====================================================================
 \begin{scope}[shift={(0,-45)}]
-  \node[block, minimum height=48mm, anchor=north west] (B4b) at (0,0) {};
+  \node[block, minimum height=48mm, anchor=north west, minimum width=718pt] (B4b) at (0,0) {};
   \node[blockTitle] at (B4b.north west)
     {\textcolor{cSampler!75!black}{Block 4b.}\;\;Temperature scaling, softmax, top-$k$ sampling, autoregressive feedback};
 

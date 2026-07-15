@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.4)  16 JUL 2026 01:48
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.4)  16 JUL 2026 02:13
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -609,7 +609,7 @@ File: umsb.fd 2013/01/14 v3.01 AMS symbols B
 
 
 Non-PDF special ignored!
-<special> papersize=736.5962pt,1918.26224pt
+<special> papersize=747.19998pt,1918.26224pt
 {C:/Users/user/AppData/Local/MiKTeX/fonts/map/pdftex/pdftex.map}]
 (architecture_hdc_rwkv_expanded.aux)
  ***********
@@ -620,7 +620,7 @@ L3 programming layer <2025-12-24>
 Here is how much of TeX's memory you used:
  16905 strings out of 467871
  351868 string characters out of 5418861
- 953872 words of memory out of 5000000
+ 953882 words of memory out of 5000000
  45482 multiletter control sequences out of 15000+600000
  640844 words of font info for 90 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
@@ -656,7 +656,7 @@ public/amsfonts/cm/cmsy9.pfb><C:/Users/user/AppData/Local/Programs/MiKTeX/fonts
 /type1/public/amsfonts/cm/cmti12.pfb><C:/Users/user/AppData/Local/Programs/MiKT
 eX/fonts/type1/public/amsfonts/cm/cmti9.pfb><C:/Users/user/AppData/Local/Progra
 ms/MiKTeX/fonts/type1/public/amsfonts/cm/cmtt9.pfb>
-Output written on architecture_hdc_rwkv_expanded.pdf (1 page, 331156 bytes).
+Output written on architecture_hdc_rwkv_expanded.pdf (1 page, 331237 bytes).
 PDF statistics:
  149 PDF objects out of 1000 (max. 8388607)
  0 named destinations out of 1000 (max. 500000)
