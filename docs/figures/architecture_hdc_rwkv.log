@@ -1,5 +1,6 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.4)  15 JUL 2026 23:45
+This is pdfTeX, Version 3.141592653-2.6-1.40.28 (MiKTeX 25.12) (preloaded format=pdflatex 2026.6.4)  16 JUL 2026 01:48
 entering extended mode
+ restricted \write18 enabled.
  %&-line parsing enabled.
 **./architecture_hdc_rwkv.tex
 (architecture_hdc_rwkv.tex
@@ -12,11 +13,9 @@ Document Class: standalone 2025/02/22 v1.5a Class to compile TeX sub-files stan
 dalone
 (C:\Users\user\AppData\Local\Programs\MiKTeX\tex/latex/tools\shellesc.sty
 Package: shellesc 2023/07/08 v1.0d unified shell escape interface for LaTeX
-
-
-Package shellesc Warning: Shell escape disabled on input line 73.
-
-) (C:\Users\user\AppData\Local\Programs\MiKTeX\tex/generic/iftex\ifluatex.sty
+Package shellesc Info: Restricted shell escape enabled on input line 77.
+)
+(C:\Users\user\AppData\Local\Programs\MiKTeX\tex/generic/iftex\ifluatex.sty
 Package: ifluatex 2019/10/25 v1.5 ifluatex legacy package. Use iftex instead.
 
 (C:\Users\user\AppData\Local\Programs\MiKTeX\tex/generic/iftex\iftex.sty
@@ -586,7 +585,7 @@ L3 programming layer <2025-12-24>
 Here is how much of TeX's memory you used:
  14801 strings out of 467871
  306215 string characters out of 5418861
- 700020 words of memory out of 5000000
+ 700142 words of memory out of 5000000
  43417 multiletter control sequences out of 15000+600000
  634585 words of font info for 67 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191

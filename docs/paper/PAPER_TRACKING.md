@@ -47,7 +47,7 @@ formatting (drop from 16 pages to ~13).
 
 | Ref | Name / caption                    | Source                                 | Status |
 |-----|-----------------------------------|----------------------------------------|--------|
-| F1  | Research flowchart (in §1)        | inline TikZ in paper.tex               | ☐ draft |
+| F1  | Research flowchart (in §1)        | inline TikZ in paper.tex               | ✅ done |
 | F2  | Compact HDC-RWKV block diagram    | `docs/figures/architecture_hdc_rwkv.tex` | ✅ done |
 | F3  | Expanded architecture poster      | `docs/figures/architecture_hdc_rwkv_expanded.tex` | ✅ done (appendix candidate) |
 | F4  | Scale invariance bar chart (F13)  | from nb12c / nb12 / nb15 results       | ☐ TODO |
