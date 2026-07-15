@@ -189,15 +189,15 @@ constrain where the residual bottleneck of the family lies.
   \node[flowstep] (rq)   {Research question\\{\scriptsize can a bipolar LM fit sub-32~KB?}};
   \node[flowstep, below=of rq] (arch) {HDC-RWKV\\{\scriptsize binding + recurrence + STE + prototype}};
 
-  \node[branch, below=of arch, xshift=-38mm] (b1) {baselines\\{\scriptsize bigram, dense, RWKV, HDC-Hebbian}};
+  \node[branch, below=of arch, xshift=-43mm] (b1) {baselines\\{\scriptsize bigram, dense, RWKV,}\\{\scriptsize HDC-Hebbian}};
   \node[branch, below=of arch] (b2) {main model\\{\scriptsize $V{=}256, d{=}256$, 16~KB}};
-  \node[branch, below=of arch, xshift=38mm]  (b3) {ablations\\{\scriptsize int8 output; continuous decay}};
+  \node[branch, below=of arch, xshift=43mm]  (b3) {ablations\\{\scriptsize int8 output;}\\{\scriptsize continuous decay}};
 
   \node[outcome, below=of b2] (res) {Empirical results\\{\scriptsize BPC, generation, storage}};
 
-  \node[outcome, below=of res, xshift=-38mm] (out1) {F13: scale-independent\\{\scriptsize BPC ceiling $\approx 2.93$}};
+  \node[outcome, below=of res, xshift=-43mm] (out1) {F13: scale-independent\\{\scriptsize BPC ceiling $\approx 2.93$}};
   \node[outcome, below=of res]              (out2) {F14/F15: neither output\\{\scriptsize nor decay is the bottleneck}};
-  \node[outcome, below=of res, xshift=38mm] (out3) {F16: model self-binarises\\{\scriptsize when given the choice}};
+  \node[outcome, below=of res, xshift=43mm] (out3) {F16: model self-binarises\\{\scriptsize when given the choice}};
 
   \draw[arr] (rq) -- (arch);
   \draw[arr] (arch) -- (b1);
@@ -325,7 +325,7 @@ until this work.}
 \small
 \begin{tabular}{@{}lccccc@{}}
 \toprule
-Work                          & Generative & Bipolar at inference & Constant/token & Deploy bytes & Corpus \\
+Work                          & Generative & \shortstack{Bipolar at\\ inference} & \shortstack{Constant/\\ token} & \shortstack{Deploy\\ bytes} & Corpus \\
 \midrule
 Kanerva HDC~\cite{kanerva2009hyperdimensional}       & no    & yes & --- & kB   & small \\
 Plate HRR~\cite{plate1995holographic}                & no    & no  & --- & ---  & small \\
@@ -731,7 +731,7 @@ lie within ${\approx}2$ of each other, so the loss is large.
 
 \paragraph{Step 4 --- Backward through $\stesign$.}
 The clipped STE passes gradient through the continuous shadow with
-$\partial\widetilde\bV_{v,i}/\partial \bV_{v,i} = \mathbb{1}[|\bV_{v,i}|\le 1]$.
+$\partial\widetilde\bV_{v,i}/\partial \bV_{v,i} = \mathbf{1}[|\bV_{v,i}|\le 1]$.
 For any component of $\bV$ that has drifted outside $[-1,+1]$ the gradient
 is gated to zero, preventing runaway; components inside the strip receive
 the gradient computed downstream through the recurrence and the

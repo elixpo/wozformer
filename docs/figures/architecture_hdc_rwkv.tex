@@ -38,7 +38,7 @@
 }
 
 \begin{document}
-\begin{tikzpicture}[node distance=8mm and 12mm]
+\begin{tikzpicture}[node distance=8mm and 20mm]
 
 % --- Main pipeline (single row, left-to-right) --------------------------
 \node[io]                       (tok)     {token\\$x_t$};
@@ -58,15 +58,16 @@
 \draw[flow] (samp)   -- (next);
 
 % recurrence self-loop (dashed, curving under the recurrence box)
-\draw[loop] (rec.south) -- ++(0,-6mm)
-                        -- ++(-14mm,0)
+\draw[loop] (rec.south) -- ++(0,-0.64)
+                        -- ++(-2.0,0)
                         node[dflow, midway, above] {$\bs_{t-1}$}
                         |- ($(rec.west)+(-2mm,0)$)
                         -- (rec.west);
 
 % autoregressive feedback (dashed, under the whole pipeline)
 \draw[loop] (next.south) -- ++(0,-14mm) -| (tok.south);
-\node[dflow] at ($(rec.south)+(0,-14mm)$) {autoregressive feedback};
+\node[dflow, above=1pt] at ($(rec.south)+(0,-14mm)$) {
+autoregressive feedback};
 
 % --- Legend below --------------------------------------------------------
 \begin{scope}[shift={(0,-30mm)}]
@@ -76,9 +77,11 @@
         font=\scriptsize] (lgC) {continuous $\tanh$ state};
   \node[samp, right=4mm of lgC, minimum width=26mm, minimum height=6mm,
         font=\scriptsize] (lgS) {sampler};
-  \node[right=6mm of lgS, font=\scriptsize\itshape, text=cCont!80!black]
-        (lgL) {\ ---\ \ dashed = state / feedback};
 \end{scope}
+
+\node[font=\scriptsize\itshape, text=cCont!80!black, anchor=east]
+      (lgL) at ($(next.east)+(0,-30mm)$) {dashed = state / feedback};
+\draw[loop, semithick] ($(lgL.west)+(-12mm, 0)$) -- ($(lgL.west)+(-2mm, 0)$);
 
 % Title
 \node[font=\bfseries, anchor=south]

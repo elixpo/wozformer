@@ -48,12 +48,12 @@
 \begin{tikzpicture}
 
 % ========== BLOCK 4a: PROTOTYPE ==========
-\node[block, minimum height=76mm, anchor=north west] (B4a) at (0,0) {};
+\node[block, minimum height=76mm, anchor=north west, minimum width=575pt] (B4a) at (0,0.01) {};
 \node[blockTitle] at (B4a.north west)
   {\textcolor{cSampler!75!black}{Block 4a.}\;\;Prototype-similarity output --- one dot product per vocabulary item};
 
 \begin{scope}[shift={(4.5,-1.8)}]
-  \node[lbl, anchor=east, align=right] at (-0.3, 0)
+  \node[lbl, anchor=east, align=right] at (-0.91, -0.02)
     {current state\\$\bs_t$};
   \foreach \v [count=\i from 0] in {0.86,0.95,-0.42,0.81,0.94,-0.08,-0.52,0.74} {
     \node[cellCont] (ss\i) at (\i*1.1, 0) {\v};
@@ -65,7 +65,7 @@
                             2/-2.5/{+,-,+,-,+,-,+,-},
                             v/-3.4/{?,?,?,?,?,?,?,?},
                             V/-4.2/{-,-,+,+,-,+,-,+}} {
-    \node[lbl, anchor=east] at (-0.3, \y) {row \row};
+    \node[lbl, anchor=east] at (-0.7, \y) {row \row};
     \foreach \v [count=\i from 0] in \pat {
       \ifx\v+
         \node[cellPos] (p\row_\i) at (\i*1.1, \y) {$+$};
@@ -80,7 +80,7 @@
 
   \draw[decorate, decoration={brace, amplitude=5pt}]
     (8*1.1 + 0.65, -0.75) -- (8*1.1 + 0.65, -4.55);
-  \node[matlbl, anchor=west] at (8*1.1 + 1.05, -2.65)
+  \node[matlbl, anchor=west, align=left] at (9.74, -2.74)
     {$\widetilde\bP$\\$V{=}256$\\prototypes};
 
   \foreach \row/\y/\val in {0/-1.1/{+0.42},
@@ -90,18 +90,18 @@
                             V/-4.2/{-0.18}} {
     \node[op, fill=cSamplerLite] (dot\row) at (12.4, \y)
        {\scriptsize$\langle\!\cdot\!\rangle$};
-    \node[cellCont, minimum width=14mm] (lg\row) at (13.6, \y) {\val};
+    \node[cellCont, minimum width=14mm] (lg\row) at (14.2, \y) {\val};
     \draw[flow] (dot\row) -- (lg\row);
   }
-  \node[lbl, anchor=west] at (13.0, -0.4) {raw logits};
+  \node[lbl, anchor=center] at (14.2, -0.4) {raw logits};
 \end{scope}
 
 % ========== BLOCK 4b: SAMPLER ==========
-\node[block, minimum height=44mm, anchor=north west] (B4b) at (0,-82mm) {};
+\node[block, minimum height=44mm, anchor=north west, minimum width=575pt] (B4b) at (0,-82mm) {};
 \node[blockTitle] at (B4b.north west)
   {\textcolor{cSampler!75!black}{Block 4b.}\;\;Temperature scaling, softmax, top-$k$ sampling, autoregressive feedback};
 
-\begin{scope}[shift={(3.0,-9.7)}]
+\begin{scope}[shift={(104pt,-276pt)}]
   \node[cellCont, minimum width=25mm, minimum height=10mm]
     (rawZ) at (0, 0) {raw logits $\bz_t$};
   \node[op, fill=cSamplerLite, minimum size=10mm] (divT) at (3.8, 0) {$/\tau$};
@@ -123,8 +123,8 @@
   \node[lbl, below=2pt of divT, text=cSampler!70!black]
      {$\tau = e^{\log\tau}$};
 
-  \draw[recur] (nxt.south) -- ++(0,-1.4) -| (-3.0, 0);
-  \node[lbl, align=center, anchor=north] at (5.5, -1.9)
+  \draw[recur] (nxt.south) -- ++(0,-1.4) -| (0,-0.5);
+  \node[lbl, align=center, anchor=north] at (5.91, -1.95)
     {\textbf{autoregressive feedback:} next token becomes input at step $t{+}1$};
 \end{scope}
 
