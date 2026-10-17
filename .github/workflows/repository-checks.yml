@@ -48,7 +48,7 @@ jobs:
       - name: Reject unresolved merge markers
         shell: bash
         run: |
-          if git grep -nE '^(<<<<<<<|=======|>>>>>>>)' -- '*.py' '*.md'; then
+          if git grep -nE '^(<<<<<<< |=======$|>>>>>>> )' -- '*.py' '*.md'; then
             echo "Unresolved merge markers found in the research record." >&2
             exit 1
           fi
